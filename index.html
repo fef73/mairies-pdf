@@ -629,7 +629,7 @@ async function lookupLits() {
   h.textContent = 'Recherche des lits touristiques…';
   try {
     const r = await getJSON(`https://geo.api.gouv.fr/communes?lat=${c.latitude}&lon=${c.longitude}&fields=code&format=json`);
-    const rec = r[0] ? await stationRec(r[0].code) : null; stnRec = rec; stnMeta = rec ? (await stationsData()).meta : null; fillStnPick();
+    const rec = r[0] ? await stationRec(r[0].code) : null; stnRec = rec; stnMeta = rec ? (await stationsData()).meta : null; if (rec && rec.stations.length && c === chosen) $('f-stn').checked = true; fillStnPick();
     const res = rec && litsOf(rec);
     if (c !== chosen) return;
     if (res) { $('f-lits').value = fr(res.lits, 0); litsAuto = res; h.textContent = `Trouvé : ${res.stations} · ${res.note}. Modifiable ; vider le champ pour ne rien afficher.`; }
@@ -642,6 +642,20 @@ function parseLits() { const v = parseInt($('f-lits').value.replace(/[\s\u00a0\u
 $('f-lits').addEventListener('change', () => { if (current) $('go').click(); });
 $('f-mention').addEventListener('change', () => { if (current) $('go').click(); });
 $('print').addEventListener('click', () => { const s = $('sheet'); if (s) s.style.transform = 'none'; window.print(); });
+
+// ?insee=73116 : présélectionne la commune par son code INSEE et génère la fiche
+(async () => {
+  const code = (new URLSearchParams(location.search).get('insee') || '').trim().toUpperCase();
+  if (!/^(\d{5}|2[AB]\d{3})$/.test(code)) return;
+  try {
+    const g = await getJSON(`https://geo.api.gouv.fr/communes/${code}?fields=nom,centre,population,departement,region&format=json&geometry=centre`);
+    const [lon, lat] = g.centre.coordinates;
+    chosen = { name: g.nom, admin1: g.region && g.region.nom, admin2: g.departement && g.departement.nom, population: g.population, latitude: lat, longitude: lon, elevation: null };
+    $('f-place').value = [chosen.name, chosen.admin2, chosen.admin1].filter(Boolean).join(', ');
+    await lookupLits();
+    $('go').click();
+  } catch (e) { msg('Code INSEE introuvable : ' + code, true); }
+})();
 </script>
 </body>
 </html>
