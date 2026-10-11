@@ -33,6 +33,10 @@
   .suggest button{display:block;width:100%;text-align:left;background:none;border:none;border-bottom:1px solid var(--hairline);color:var(--text-hi);padding:9px 12px;cursor:pointer;font:13px 'Space Grotesk',sans-serif;}
   .suggest button:last-child{border-bottom:none;} .suggest button:hover{background:#1a3350;}
   .suggest small{color:var(--text-lo);font-size:11px;margin-left:4px;}
+  .stn{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;margin-top:6px;}
+  .stn div{background:var(--ac-soft);border-radius:8px;padding:7px 10px;} .stn .w3{grid-column:span 3;} .stn .w2{grid-column:span 2;}
+  .stn b{display:block;font-family:'Fraunces',serif;font-size:19px;font-weight:600;color:var(--ac);line-height:1.2;}
+  .stn span{font-size:10.5px;color:var(--mute);}
   .hidden{display:none !important;}
   .btns{display:flex;gap:10px;margin-top:6px;}
   .btn{flex:1;border:none;border-radius:10px;padding:11px 12px;font:600 14px 'Space Grotesk',sans-serif;cursor:pointer;background:var(--live);color:#06231a;}
@@ -133,6 +137,10 @@
         <input id="f-alt" type="text" inputmode="numeric" placeholder="auto" data-lpignore="true" data-1p-ignore data-form-type="other">
         <p class="hint">Pour viser le chef-lieu, la station ou un hameau précis plutôt que le point proposé.</p>
       </div>
+      <div class="field"><label for="f-lits">Lits touristiques (en-tête) — facultatif</label>
+        <input id="f-lits" type="text" inputmode="numeric" placeholder="ex. 12 500" data-lpignore="true" data-1p-ignore data-form-type="other">
+        <p class="hint" id="lits-hint">Si renseigné, « N lits touristiques » s'affiche sous le nom de la commune. Rempli automatiquement pour les stations de Savoie.</p>
+      </div>
       <div class="field"><label for="f-logo">Logo ou blason — facultatif</label>
         <input id="f-logo" type="file" accept="image/*">
       </div>
@@ -145,9 +153,14 @@
       <div class="field"><label for="f-mention">Mention en pied de page</label>
         <input id="f-mention" type="text" placeholder="ex. Mairie de … · www.…" data-lpignore="true" data-1p-ignore data-form-type="other">
       </div>
-      <div class="field"><label class="check"><input type="checkbox" id="f-tour"> Ajouter « Quand venir » (communes touristiques)</label>
+      <div class="field"><label class="check"><input type="checkbox" id="f-stn"> Station de ski : vallée, domaine, remontées, pistes, lits</label>
+        <select id="f-stn-pick" class="hidden" style="margin-top:6px" aria-label="Station"></select>
+        <p class="hint" id="stn-hint"></p>
+        <label class="check"><input type="checkbox" id="f-ski"> Station de ski : cumul de neige par saison depuis 1950</label>
+        <label class="check"><input type="checkbox" id="f-hist" checked> Depuis 1950 : bandes de température année par année et tableau des jours de gel, de chaleur, de neige…</label>
+        <label class="check"><input type="checkbox" id="f-ytd" checked> Année en cours face à la normale : écart de température et de précipitations depuis le 1er janvier</label>
         <label class="check"><input type="checkbox" id="f-air"> Qualité de l'air : indice européen par mois (données depuis 2022)</label>
-        <label class="check"><input type="checkbox" id="f-ski"> Station de ski : cumul de neige par saison depuis 1950</label></div>
+        <label class="check"><input type="checkbox" id="f-tour"> Ajouter « Quand venir » (communes touristiques)</label></div>
       <div class="btns">
         <button class="btn" id="go" type="button">Générer</button>
         <button class="btn alt" id="print" type="button" disabled>PDF / Imprimer</button>
@@ -191,10 +204,7 @@ function sha256(str) {
   return H.map(v => (v >>> 0).toString(16).padStart(8, '0')).join('');
 }
 const empreinte = pw => sha256('fef73:' + pw);
-function unlock() {
-  document.body.classList.remove('locked'); try { sessionStorage.setItem('fc-ok', PASS_HASH); } catch (e) {}
-  setTimeout(() => window.lancerParURL && window.lancerParURL());   // lancement par URL éventuel, une fois la page déverrouillée
-}
+function unlock() { document.body.classList.remove('locked'); try { sessionStorage.setItem('fc-ok', PASS_HASH); } catch (e) {} }
 try { if (sessionStorage.getItem('fc-ok') === PASS_HASH) unlock(); } catch (e) {}
 $('lock').addEventListener('submit', e => {
   e.preventDefault();
@@ -210,6 +220,18 @@ const msg = (t, err) => { $('msg').textContent = t; $('msg').className = 'msg' +
 
 async function getJSON(url) { const r = await fetch(url); if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); }
 
+// ---------- Lits touristiques : données du dépôt COMCOM-PDF (stations de Savoie) ----------
+const STATIONS_URL = 'https://raw.githubusercontent.com/fef73/COMCOM-PDF/main/donnees/stations-ski-savoie.json';
+let stationsP = null;
+const stationsData = () => stationsP || (stationsP = getJSON(STATIONS_URL).catch(e => { stationsP = null; throw e; }));
+async function litsFor(insee) { const c = (await stationsData()).communes[insee]; return c ? litsOf(c) : null; }
+function litsOf(c) {
+  const v = c.stations.map(s => s.litsTouristiques).filter(x => typeof x === 'number'); if (!v.length) return null;
+  const an = [...new Set(c.stations.map(s => s.litsAnnee).filter(Boolean))].join(' / ');
+  return { lits: v.reduce((a, b) => a + b, 0), note: 'Savoie Mont Blanc' + (an ? ' (' + an + ')' : ''), stations: c.stations.map(s => s.station).join(' + ') };
+}
+
+
 // ---------- Données : 1950 → il y a 6 jours, en 3 morceaux ----------
 async function fetchAll(p, elev) {
   const endD = new Date(Date.now() - 6 * 86400000), end = endD.toISOString().slice(0, 10);
@@ -224,6 +246,28 @@ async function fetchAll(p, elev) {
     out.pr.push(...d.precipitation_sum); out.sn.push(...d.snowfall_sum); out.su.push(...d.sunshine_duration); out.wg.push(...(d.wind_gusts_10m_max || []));
   }
   return out;
+}
+
+
+// ---------- Section « Station de ski » (données du dépôt COMCOM-PDF) ----------
+const stationRec = async insee => (await stationsData()).communes[insee] || null;
+const stnNoteOf = D => 'données station : relevé du ' + dateFr(D.meta.dateReleve) + ', sources publiques';
+function stnBlock(s, com) {
+  const nz = x => String(x || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
+  const sub = !!com && nz(s.station) !== nz(com) && !nz(com).includes(nz(s.station)) && !nz(s.station).includes(nz(com));
+  const n = v => v == null ? 'n.c.' : fr(v, 0);
+  const same = s.kmPistesStation != null && s.kmPistesStation === s.kmPistesDomaine;
+  const pistes = s.kmPistesStation != null ? s.kmPistesStation : s.kmPistesDomaine;
+  const pLab = same || s.kmPistesDomaine == null || s.kmPistesStation == null ? 'de pistes' + (sub ? ' de ' + esc(s.station) : '') + (s.kmPistesStation == null && s.kmPistesDomaine != null ? ' (domaine)' : '') : `de pistes ${sub ? 'à ' + esc(s.station) : 'en station'} · ${fr(s.kmPistesDomaine, 0)} km sur le domaine`;
+  const alt = s.altitudeBasse != null && s.altitudeHaute != null ? `Remontées de ${fr(s.altitudeBasse, 0)} à ${fr(s.altitudeHaute, 0)} m${s.denivele ? ' (dénivelé ' + fr(s.denivele, 0) + ' m)' : ''}.` : '';
+  return `<div class="sh-sec"><h3>Station de ski · ${esc(s.station)}${sub ? ' (commune de ' + esc(com) + ')' : ''}</h3>
+    <div class="stn">
+      <div class="w3"><b>${esc(s.vallee || 'n.c.')}</b><span>vallée</span></div>
+      <div class="w3"><b>${esc(s.domaineSkiable || 'n.c.')}</b><span>domaine skiable</span></div>
+      <div class="w2"><b>${n(s.remonteesMecaniques)}</b><span>remontées mécaniques${sub ? ' à ' + esc(s.station) : ''}</span></div>
+      <div class="w2"><b>${pistes == null ? 'n.c.' : fr(pistes, 0) + ' km'}</b><span>${pLab}</span></div>
+      <div class="w2"><b>${n(s.litsTouristiques)}</b><span>lits touristiques${sub ? ' à ' + esc(s.station) : ''}${s.litsAnnee ? ' (données ' + esc(s.litsAnnee) + ')' : ''}</span></div>
+    </div>${alt ? `<div class="ski-cap">${alt}</div>` : ''}</div>`;
 }
 
 // ---------- Qualité de l'air (CAMS via Open-Meteo, horaire, depuis août 2022) ----------
@@ -434,7 +478,8 @@ function render(p, R, alt, o) {
   const build = () => { sheet.innerHTML = `<div class="sh-in">
     <div class="sh-head">${logoData ? `<img class="logo" src="${logoData}" alt="">` : ''}
       <div class="tt"><div class="kicker">Fiche climat</div><h2>${esc(p.name)}</h2>
-      <div class="meta">${esc([place, `altitude ${fr(alt, 0)} m`, p.population ? `${fr(p.population, 0)} habitants` : null].filter(Boolean).join(' · '))}</div></div></div>
+      <div class="meta">${esc([place, `altitude ${fr(alt, 0)} m`, p.population ? `${fr(p.population, 0)} habitants` : null, o.lits ? `${fr(o.lits, 0)} lits touristiques${o.stn ? ' (commune)' : ''}` : null].filter(Boolean).join(' · '))}</div></div></div>
+    ${o.stn ? stnBlock(o.stn, p.name) : ''}
     <div class="sh-sec"><h3>Le climat en un coup d'œil <span style="letter-spacing:0;text-transform:none;color:#5d6b79;font-family:'Space Grotesk',sans-serif;font-size:10.5px;white-space:nowrap">· normales 1991–2020 (c'est la moyenne de chaque mois sur les 30 années de 1991 à 2020)</span></h3>
       ${climogram(R, o.color, o.ski)}
       <div class="kpis">
@@ -443,17 +488,17 @@ function render(p, R, alt, o) {
         <div class="kpi"><b>${R.annSn >= 1 ? fr(R.annSn, 0) + ' cm' : '—'}</b><span>de neige par an</span></div>
         <div class="kpi"><b>${R.annSu ? fr(R.annSu, 0) + ' h' : '—'}</b><span>d'ensoleillement par an</span></div>
       </div></div>
-    <div class="sh-sec"><h3>${esc(ytdTitle)} face à la normale</h3>
+    ${o.ytd ? `<div class="sh-sec"><h3>${esc(ytdTitle)} face à la normale</h3>
       <div class="ytd">
         <div class="big"><b class="${dT > 0 ? 'warm' : 'cold'}">${dT == null ? '—' : sgn(dT) + ' °C'}</b><span>écart de température à la normale 1991–2020</span></div>
         <div class="big"><b>${dP == null ? '—' : sgn(dP, 0) + ' %'}</b><span>précipitations (${fr(k.prSum, 0)} mm contre ${fr(k.refPr, 0)} mm en moyenne)</span></div>
         <div class="txt">${dT == null ? '' : `Période ${dT >= 0.3 ? 'plus chaude' : dT <= -0.3 ? 'plus fraîche' : 'proche de la normale'}${dP != null ? `, ${dP >= 15 ? 'plus arrosée' : dP <= -15 ? 'plus sèche' : 'avec des pluies dans la norme'}` : ''}. Comparaison sur la même fenêtre calendaire.`}</div>
-      </div></div>
-    <div class="sh-sec"><h3>Depuis ${R.years[0]} · un trait par année</h3>
+      </div></div>` : ''}
+    ${o.hist ? `<div class="sh-sec"><h3>Depuis ${R.years[0]} · un trait par année</h3>
       ${stripes(R)}
       <div class="stripes-cap"><span>${R.years[0]}</span><span>bleu : plus frais que 1991–2020 · rouge : plus chaud</span><span>${R.lastFull}</span></div>
       <table class="ind"><tr><th>Jours par an en moyenne</th>${R.periods.map(([a, b]) => `<th>${a}–${b}</th>`).join('')}</tr>
-        ${R.ind.map(r => `<tr><td>${r.label}</td>${r.vals.map(v => `<td>${fr(v, v < 10 ? 1 : 0)}</td>`).join('')}</tr>`).join('')}</table></div>
+        ${R.ind.map(r => `<tr><td>${r.label}</td>${r.vals.map(v => `<td>${fr(v, v < 10 ? 1 : 0)}</td>`).join('')}</tr>`).join('')}</table></div>` : ''}
     ${o.ski ? skiBlock(R, o.color) : ''}
     ${o.air ? airBlock(o.airData) : ''}
     <div class="sh-sec"><h3>Les extrêmes depuis ${R.years[0]}</h3>
@@ -465,7 +510,7 @@ function render(p, R, alt, o) {
       </div></div>
     <div class="sh-sec"><h3>Repères locaux</h3><div class="local"><ul>${L.map(x => `<li>${x}</li>`).join('')}</ul></div></div>
     ${tourBlock}
-    <div class="sh-foot"><div>Sources : réanalyse ERA5 (Copernicus / ECMWF) via Open-Meteo, ${yrs} ; normales 1991–2020${o.air ? ' ; qualité de l\'air : CAMS (Copernicus) via Open-Meteo' : ''}. Valeurs modélisées au point ${fr(p.lat, 3)}° N, ${fr(p.lon, 3)}° E à ${fr(alt, 0)} m : elles peuvent différer des mesures d'une station. Fiche établie le ${new Date().toLocaleDateString('fr-FR')} à ${new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}.</div>
+    <div class="sh-foot"><div>Sources : réanalyse ERA5 (Copernicus / ECMWF) via Open-Meteo, ${yrs} ; normales 1991–2020${o.air ? ' ; qualité de l\'air : CAMS (Copernicus) via Open-Meteo' : ''}${o.litsNote ? ' ; lits touristiques : ' + o.litsNote : ''}${o.stn ? ' ; ' + o.stnNote : ''}. Valeurs modélisées au point ${fr(p.lat, 3)}° N, ${fr(p.lon, 3)}° E à ${fr(alt, 0)} m : elles peuvent différer des mesures d'une station. Fiche établie le ${new Date().toLocaleDateString('fr-FR')} à ${new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}.</div>
       <div class="r">${o.mention ? `<div class="mention">${esc(o.mention)}</div>` : ''}Document informatif : ne remplace pas la vigilance Météo-France.<br>© ${new Date().getFullYear()} fef73</div></div></div>`; };
   const wrap = $('wrap'); $('empty') && $('empty').remove(); if (!sheet.parentNode) wrap.appendChild(sheet);
   // mise en page : si la fiche doit être réduite, on redessine les graphiques à la largeur voulue
@@ -528,7 +573,7 @@ $('f-place').addEventListener('input', () => {
         chosen = res[+b.dataset.i];
         $('f-place').value = [chosen.name, chosen.admin2, chosen.admin1].filter(Boolean).join(', ');
         $('f-alt').placeholder = chosen.elevation != null ? Math.round(chosen.elevation) + ' (auto)' : 'auto';
-        box.classList.add('hidden');
+        box.classList.add('hidden'); lookupLits();
       };
     } catch (e) { box.innerHTML = '<button type="button" disabled><small>Recherche indisponible</small></button>'; box.classList.remove('hidden'); }
   }, 300);
@@ -543,10 +588,10 @@ $('f-size').addEventListener('change', () => {
   const a3 = $('f-size').value === 'A3';
   $('page-size').textContent = `@page { size: ${a3 ? 'A3' : 'A4'} portrait; margin: 0; }`;
 });
-['f-color', 'f-tour', 'f-ski', 'f-air'].forEach(id => $(id).addEventListener('change', () => { if (current) $('go').click(); }));
+['f-color', 'f-tour', 'f-ski', 'f-air', 'f-ytd', 'f-hist'].forEach(id => $(id).addEventListener('change', () => { if (current) $('go').click(); }));
 
 const cache = {}, airCache = {};
-async function generer() {
+$('go').addEventListener('click', async () => {
   if (!chosen) return msg('Choisissez la commune dans la liste proposée.', true);
   const altIn = $('f-alt').value.trim().replace(',', '.');
   let elev = null; if (altIn) { elev = parseFloat(altIn); if (!isFinite(elev) || elev < -400 || elev > 6000) return msg('Altitude invalide (en mètres).', true); }
@@ -564,52 +609,39 @@ async function generer() {
     const alt = elev != null ? elev : (D.elevation != null ? D.elevation : (chosen.elevation || 0));
     current = { chosen, R, alt };
     render({ name: chosen.name, admin1: chosen.admin1, admin2: chosen.admin2, population: chosen.population, lat: chosen.latitude, lon: chosen.longitude }, R, alt,
-      { color: $('f-color').value, mention: $('f-mention').value.trim(), tour: $('f-tour').checked, ski: $('f-ski').checked, air: $('f-air').checked, airData });
+      { color: $('f-color').value, stn: $('f-stn').checked && stnRec && stnRec.stations.length ? stnRec.stations[+$('f-stn-pick').value || 0] : null, stnNote: stnMeta ? stnNoteOf({ meta: stnMeta }) : '', lits: parseLits(), litsNote: litsAuto && parseLits() === litsAuto.lits ? litsAuto.note : '', mention: $('f-mention').value.trim(), tour: $('f-tour').checked, ski: $('f-ski').checked, air: $('f-air').checked, ytd: $('f-ytd').checked, hist: $('f-hist').checked, airData });
     $('print').disabled = false; msg('Fiche prête.');
-  } catch (e) { delete cache[`${chosen.latitude},${chosen.longitude},${elev}`]; msg('Impossible de récupérer les données. Réessayez dans un instant.', true); $('go').disabled = false; return false; }
-  $('go').disabled = false; return true;
+  } catch (e) { delete cache[`${chosen.latitude},${chosen.longitude},${elev}`]; msg('Impossible de récupérer les données. Réessayez dans un instant.', true); }
+  $('go').disabled = false;
+});
+let litsAuto = null, stnRec = null, stnMeta = null;
+function fillStnPick() {
+  const p = $('f-stn-pick'), st = stnRec ? stnRec.stations : [];
+  p.innerHTML = st.map((s, i) => `<option value="${i}">${esc(s.station)}</option>`).join('');
+  p.classList.toggle('hidden', !($('f-stn').checked && st.length > 1));
+  $('stn-hint').textContent = $('f-stn').checked && !st.length ? 'Pas de donnée station pour cette commune.' : '';
 }
-$('go').addEventListener('click', generer);
+$('f-stn').addEventListener('change', () => { fillStnPick(); if (current) $('go').click(); });
+$('f-stn-pick').addEventListener('change', () => { if (current) $('go').click(); });
+async function lookupLits() {
+  litsAuto = null; const h = $('lits-hint'), c = chosen; if (!c) return;
+  const base = 'Si renseigné, « N lits touristiques » s\'affiche sous le nom de la commune. Rempli automatiquement pour les stations de Savoie.';
+  h.textContent = 'Recherche des lits touristiques…';
+  try {
+    const r = await getJSON(`https://geo.api.gouv.fr/communes?lat=${c.latitude}&lon=${c.longitude}&fields=code&format=json`);
+    const rec = r[0] ? await stationRec(r[0].code) : null; stnRec = rec; stnMeta = rec ? (await stationsData()).meta : null; fillStnPick();
+    const res = rec && litsOf(rec);
+    if (c !== chosen) return;
+    if (res) { $('f-lits').value = fr(res.lits, 0); litsAuto = res; h.textContent = `Trouvé : ${res.stations} · ${res.note}. Modifiable ; vider le champ pour ne rien afficher.`; }
+    else { $('f-lits').value = ''; h.textContent = 'Pas de donnée pour cette commune : saisir à la main si besoin.'; }
+  } catch (e) { h.textContent = base; }
+  if (current) $('go').click();
+}
+$('f-lits').addEventListener('input', () => { litsAuto = null; });
+function parseLits() { const v = parseInt($('f-lits').value.replace(/[\s\u00a0\u202f.,]/g, ''), 10); return isFinite(v) && v > 0 ? v : null; }
+$('f-lits').addEventListener('change', () => { if (current) $('go').click(); });
 $('f-mention').addEventListener('change', () => { if (current) $('go').click(); });
 $('print').addEventListener('click', () => { const s = $('sheet'); if (s) s.style.transform = 'none'; window.print(); });
-
-// ---------- Lancement par URL (« API ») ----------
-// La fiche peut être ouverte toute prête depuis une autre page, par exemple :
-//   ?insee=73248                                  commune par son code INSEE (position de la mairie)
-//   ?lat=45.2763&lon=6.3462&nom=Saint-Jean-de-Maurienne
-// Options : alt=1550 · air=1 · ski=1 · tour=1 · couleur=bleu|vert|bordeaux|ardoise · format=A3
-//           mention=Mairie%20de%20… · imprimer=1 (ouvre la fenêtre d'impression / PDF)
-// Le mot de passe reste demandé ; la fiche se génère dès que la page est déverrouillée.
-const COULEURS = { bleu: '#1d4e7a', vert: '#2f6b4f', bordeaux: '#8a2f3d', ardoise: '#3d4b5c' };
-let apiFait = false;
-window.lancerParURL = async () => {
-  const q = new URLSearchParams(location.search);
-  if (apiFait || !(q.get('insee') || (q.get('lat') && q.get('lon')))) return;
-  apiFait = true;
-  const oui = k => /^(1|oui|true)$/i.test(q.get(k) || '');
-  try {
-    msg('Lancement par lien…');
-    if (q.get('insee')) {
-      const c = await getJSON(`https://geo.api.gouv.fr/communes/${encodeURIComponent(q.get('insee'))}?fields=nom,code,centre,mairie,population,departement,region`);
-      const g = (c.mairie || c.centre).coordinates;
-      chosen = { name: q.get('nom') || c.nom, admin2: c.departement && c.departement.nom, admin1: c.region && c.region.nom, population: c.population, latitude: g[1], longitude: g[0] };
-    } else {
-      chosen = { name: q.get('nom') || q.get('ville') || 'Point choisi', admin2: q.get('dep') || null, admin1: q.get('region') || null,
-        population: +q.get('pop') || null, latitude: +q.get('lat'), longitude: +q.get('lon') };
-      if (!isFinite(chosen.latitude) || !isFinite(chosen.longitude)) throw new Error('coordonnées invalides');
-    }
-    $('f-place').value = [chosen.name, chosen.admin2, chosen.admin1].filter(Boolean).join(', ');
-    $('f-alt').value = q.get('alt') || '';
-    $('f-air').checked = oui('air'); $('f-ski').checked = oui('ski'); $('f-tour').checked = oui('tour');
-    const col = (q.get('couleur') || '').toLowerCase(), hex = COULEURS[col] || (/^#?[0-9a-f]{6}$/i.test(col) ? '#' + col.replace('#', '') : null);
-    if (hex) { if (![...$('f-color').options].some(o => o.value === hex)) $('f-color').add(new Option('Personnalisée', hex)); $('f-color').value = hex; }
-    if (q.get('mention')) $('f-mention').value = q.get('mention');
-    if (/^a3$/i.test(q.get('format') || '')) { $('f-size').value = 'A3'; $('f-size').dispatchEvent(new Event('change')); }
-    const fait = await generer();
-    if (fait && oui('imprimer')) setTimeout(() => $('print').click(), 800);
-  } catch (e) { msg('Lien incomplet ou commune introuvable : ' + e.message, true); }
-};
-if (!document.body.classList.contains('locked')) window.lancerParURL();
 </script>
 </body>
 </html>
