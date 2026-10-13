@@ -653,7 +653,7 @@ $('f-size').addEventListener('change', () => {
 
 const cache = {}, airCache = {};
 // Pause de quota : barre de progression, puis nouvel essai automatique (un clic sur « Générer » relance tout de suite)
-let waitT = null;
+let waitT = null, essais = 0, essaisPour = null;   // essais : pauses successives pour la même commune (5 au plus)
 function finAttente() { clearInterval(waitT); waitT = null; $('wait').classList.add('hidden'); }
 function patienter(sec) {
   finAttente();
@@ -670,6 +670,7 @@ function patienter(sec) {
 $('go').addEventListener('click', async () => {
   finAttente();
   if (!chosen) return msg('Choisissez la commune dans la liste proposée.', true);
+  if (essaisPour !== chosen) { essaisPour = chosen; essais = 0; }
   const altIn = $('f-alt').value.trim().replace(',', '.');
   let elev = null; if (altIn) { elev = parseFloat(altIn); if (!isFinite(elev) || elev < -400 || elev > 6000) return msg('Altitude invalide (en mètres).', true); }
   $('go').disabled = true; msg('Récupération de 75 ans de données…');
@@ -678,8 +679,11 @@ $('go').addEventListener('click', async () => {
   try { D = cache[key] || (cache[key] = await fetchAll({ lat: chosen.latitude, lon: chosen.longitude }, elev)); }
   catch (e) {
     delete cache[key]; $('go').disabled = false;
-    if (e.status === 429 && !/hour|day/i.test(e.why || '')) {
-      msg('Quota Open-Meteo atteint : les données déjà reçues sont gardées, la suite se charge automatiquement après la pause.', true);
+    // quota minute (429), ou pas de réponse lisible (un refus de quota arrive parfois sans en-tête CORS : le navigateur ne voit qu'une erreur réseau)
+    const minute = e.status === 429 && !/hour|day/i.test(e.why || ''), reseau = !e.status;
+    if ((minute || reseau) && essais < 5) {
+      essais++;
+      msg((minute ? 'Quota Open-Meteo atteint' : 'Pas de réponse d\'Open-Meteo (souvent le quota)') + ' : les données déjà reçues sont gardées, la suite se charge automatiquement après la pause.', true);
       return patienter(65);
     }
     const q = e.status === 429 ? (/day/i.test(e.why) ? ' (quota journalier Open-Meteo atteint : réessayez demain)' : ' (quota horaire Open-Meteo atteint : réessayez dans une heure)') : '';
