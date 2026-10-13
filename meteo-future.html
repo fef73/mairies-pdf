@@ -70,16 +70,37 @@ svg{width:100%;height:auto;display:block}
 .err{color:#ff9b9b}
 .hide{display:none}
 .lock{max-width:360px;margin:15vh auto;text-align:center}
+/* ---------- PDF / impression : A4, fond blanc, couleurs lisibles ---------- */
+.printonly{display:none}
+@page{size:A4 portrait;margin:11mm 10mm}
 @media print{
-  body{background:#fff;color:#000}
-  .panel,.day,.kpi{background:#fff;border-color:#ccc}
-  .noprint{display:none!important}
-  .day.tend{opacity:1}
+  :root{--bg:#fff;--panel:#fff;--panel2:#f2f5f9;--line:#d3dbe6;--txt:#15212e;--mute:#566475;--acc:#1f5f99;
+        --chaud:#d4452d;--froid:#2b6cb0;--pluie:#2a9d8f;--neige:#7fa7dc;--vent:#b7791f}
+  html,body{background:#fff;color:var(--txt);font-size:11px}
+  *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .wrap{max-width:none;padding:0}
+  .noprint,#msg,.sub{display:none!important}
+  .printonly{display:block}
+  h1{font-size:20px;margin:0}
+  .printhead{display:flex;justify-content:space-between;align-items:baseline;border-bottom:2px solid var(--acc);padding-bottom:4px;margin-bottom:8px;color:var(--mute);font-size:10px}
+  .panel{padding:8px 10px;margin-bottom:8px;border-radius:8px;break-inside:avoid}
+  .head h2{font-size:17px}
+  .kpis{grid-template-columns:repeat(8,1fr);gap:6px;margin-top:8px}
+  .kpi{padding:5px 7px} .kpi b{font-size:13px} .kpi span{font-size:9px}
+  .days{grid-template-columns:repeat(8,1fr);gap:5px}
+  .day{padding:5px 3px;break-inside:avoid} .day.tend{opacity:1}
+  .day .ic{font-size:18px} .day .lb{min-height:0;font-size:9px} .day .x,.day .nm,.ano{font-size:9px} .tag{font-size:8.5px}
+  .sgrid{grid-template-columns:repeat(6,1fr);gap:5px} .stile{padding:5px;break-inside:avoid} .stile .an{font-size:14px}
+  .saison h3{font-size:14px} .saison h4{margin:8px 0 4px}
+  .note{font-size:9px}
+  #saison{break-before:page}
+  a{color:inherit;text-decoration:none}
 }
 </style>
 </head>
 <body>
 <div class="wrap">
+  <div class="printonly printhead"><span>METEO FUTURE · prévisions, normales et horizon neige</span><span id="printDate"></span></div>
   <h1>Météo à venir</h1>
   <p class="sub">Prévisions jour par jour sur 16 jours, pour n'importe quelle commune française.</p>
 
@@ -90,7 +111,7 @@ svg{width:100%;height:auto;display:block}
         placeholder="Altitude (m) : auto" title="Altitude du point en mètres — laisser vide pour l'altitude automatique. Entrée pour appliquer.">
 
       <button id="geo" class="sec" title="Ma position">📍 Ma position</button>
-      <button id="print" class="sec">🖨️ Imprimer</button>
+      <button id="print" class="sec" title="Enregistrer en PDF ou imprimer (A4)">📄 PDF / Imprimer</button>
       <div id="sugg" class="sugg"></div>
     </div>
   </div>
@@ -270,7 +291,15 @@ $("geo").onclick=()=>{
     charger({nom,insee,dep,lat,lon,alt});
   },()=>$("msg").textContent="Position refusée.");
 };
-$("print").onclick=()=>window.print();
+// PDF : nom de fichier proposé = titre de la page (commune + date), mise en page A4 définie dans @media print
+$("print").onclick=()=>{
+  const d=new Date(), ti=document.title;
+  $("printDate").textContent=`établie le ${d.toLocaleDateString("fr-FR")} à ${d.toLocaleTimeString("fr-FR",{hour:"2-digit",minute:"2-digit"})} · fef73.github.io`;
+  const nom=$("nom").textContent.replace(/\s*\(.*\)$/,"").trim();
+  if(nom) document.title=`Meteo-future_${nom.replace(/[^\p{L}\d-]+/gu,"-")}_${isoJ(d)}`;
+  window.print();
+  setTimeout(()=>document.title=ti,1000);
+};
 
 /* ---------- Prévisions ---------- */
 async function charger(c){
