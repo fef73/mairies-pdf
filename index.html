@@ -44,6 +44,9 @@
   .btn:disabled{opacity:.45;cursor:not-allowed;}
   .msg{font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:var(--live);margin-top:10px;min-height:16px;}
   .msg.err{color:var(--coral);}
+  .wait{display:flex;align-items:center;gap:10px;margin-top:8px;font:11.5px 'IBM Plex Mono',monospace;color:var(--text-lo);}
+  .wbar{flex:1;height:6px;background:var(--hairline);border-radius:4px;overflow:hidden;}
+  .wbar i{display:block;height:100%;width:0;background:var(--live);transition:width 1s linear;}
   .preview{min-width:0;}
   .sheet-wrap{width:100%;max-width:794px;margin:0 auto;background:#fff;box-shadow:0 10px 40px rgba(0,0,0,.5);overflow:hidden;position:relative;}
   .empty{font-family:'IBM Plex Mono',monospace;color:var(--text-lo);font-size:13px;text-align:center;padding:80px 20px;}
@@ -167,6 +170,7 @@
         <button class="btn alt" id="print" type="button" disabled>PDF / Imprimer</button>
       </div>
       <div id="msg" class="msg"></div>
+      <div id="wait" class="wait hidden"><div class="wbar"><i id="wbar"></i></div><span id="wlab"></span></div>
     </div>
   </div>
   <div class="preview">
@@ -220,7 +224,11 @@ const sgn = (v, d = 1) => (v > 0 ? '+' : v < 0 ? '−' : '') + fr(Math.abs(v), d
 const dateFr = iso => new Date(+iso.slice(0, 4), +iso.slice(5, 7) - 1, +iso.slice(8, 10)).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
 const msg = (t, err) => { $('msg').textContent = t; $('msg').className = 'msg' + (err ? ' err' : ''); };
 
-async function getJSON(url) { const r = await fetch(url); if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); }
+async function getJSON(url) {
+  const r = await fetch(url); if (r.ok) return r.json();
+  let why = ''; try { why = (await r.json()).reason || ''; } catch (e) {}
+  const e = new Error('HTTP ' + r.status + (why ? ' – ' + why : '')); e.status = r.status; e.why = why; throw e;
+}
 
 // ---------- Lits touristiques : données du dépôt COMCOM-PDF (stations de Savoie) ----------
 const STATIONS_URL = 'https://raw.githubusercontent.com/fef73/COMCOM-PDF/main/donnees/stations-ski-savoie.json';
@@ -235,12 +243,16 @@ function litsOf(c) {
 
 
 // ---------- Données : 1950 → il y a 6 jours, en 3 morceaux ----------
+const partCache = {};
 async function fetchAll(p, elev) {
   const endD = new Date(Date.now() - 6 * 86400000), end = endD.toISOString().slice(0, 10);
   const ranges = [['1950-01-01', '1974-12-31'], ['1975-01-01', '1999-12-31'], ['2000-01-01', end]];
   const vars = 'temperature_2m_max,temperature_2m_min,precipitation_sum,snowfall_sum,sunshine_duration,wind_gusts_10m_max';
-  const parts = await Promise.all(ranges.map(([a, b]) =>
-    getJSON(`https://archive-api.open-meteo.com/v1/archive?latitude=${p.lat}&longitude=${p.lon}&start_date=${a}&end_date=${b}&daily=${vars}&timezone=auto${elev != null ? '&elevation=' + elev : ''}`)));
+  // chaque morceau reçu est gardé : après une pause pour quota, seuls les morceaux manquants sont redemandés
+  const urls = ranges.map(([a, b]) => `https://archive-api.open-meteo.com/v1/archive?latitude=${p.lat}&longitude=${p.lon}&start_date=${a}&end_date=${b}&daily=${vars}&timezone=auto${elev != null ? '&elevation=' + elev : ''}`);
+  const res = await Promise.allSettled(urls.map(u => partCache[u] || getJSON(u).then(j => (partCache[u] = j))));
+  const bad = res.find(x => x.status === 'rejected'); if (bad) throw bad.reason;
+  const parts = res.map(x => x.value);
   const out = { time: [], tx: [], tn: [], pr: [], sn: [], su: [], wg: [], elevation: parts[0].elevation };
   for (const j of parts) {
     const d = j.daily; if (!d || !d.time) throw new Error('vide');
@@ -640,7 +652,23 @@ $('f-size').addEventListener('change', () => {
 ['f-color', 'f-tour', 'f-ski', 'f-futur', 'f-air', 'f-ytd', 'f-hist'].forEach(id => $(id).addEventListener('change', () => { if (current) $('go').click(); }));
 
 const cache = {}, airCache = {};
+// Pause de quota : barre de progression, puis nouvel essai automatique (un clic sur « Générer » relance tout de suite)
+let waitT = null;
+function finAttente() { clearInterval(waitT); waitT = null; $('wait').classList.add('hidden'); }
+function patienter(sec) {
+  finAttente();
+  const fin = Date.now() + sec * 1000, pour = chosen;
+  $('wait').classList.remove('hidden'); $('wbar').style.transition = 'none'; $('wbar').style.width = '0';
+  const tic = () => {
+    const r = Math.max(0, Math.ceil((fin - Date.now()) / 1000));
+    $('wbar').style.transition = ''; $('wbar').style.width = (100 * (sec - r) / sec) + '%';
+    $('wlab').textContent = `reprise dans ${r} s`;
+    if (r === 0) { finAttente(); if (chosen === pour) $('go').click(); }
+  };
+  tic(); waitT = setInterval(tic, 1000);
+}
 $('go').addEventListener('click', async () => {
+  finAttente();
   if (!chosen) return msg('Choisissez la commune dans la liste proposée.', true);
   const altIn = $('f-alt').value.trim().replace(',', '.');
   let elev = null; if (altIn) { elev = parseFloat(altIn); if (!isFinite(elev) || elev < -400 || elev > 6000) return msg('Altitude invalide (en mètres).', true); }
@@ -649,9 +677,13 @@ $('go').addEventListener('click', async () => {
   let D;
   try { D = cache[key] || (cache[key] = await fetchAll({ lat: chosen.latitude, lon: chosen.longitude }, elev)); }
   catch (e) {
-    delete cache[key];
-    const q = /429/.test(e.message) ? ' (quota Open-Meteo atteint : patientez une minute)' : '';
-    msg('Impossible de récupérer les données' + q + '. Réessayez dans un instant.', true); $('go').disabled = false; return;
+    delete cache[key]; $('go').disabled = false;
+    if (e.status === 429 && !/hour|day/i.test(e.why || '')) {
+      msg('Quota Open-Meteo atteint : les données déjà reçues sont gardées, la suite se charge automatiquement après la pause.', true);
+      return patienter(65);
+    }
+    const q = e.status === 429 ? (/day/i.test(e.why) ? ' (quota journalier Open-Meteo atteint : réessayez demain)' : ' (quota horaire Open-Meteo atteint : réessayez dans une heure)') : '';
+    msg('Impossible de récupérer les données' + q + '. Réessayez dans un instant.', true); return;
   }
   try {
     msg('Calcul…');
