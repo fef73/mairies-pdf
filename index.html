@@ -690,9 +690,12 @@ $('print').addEventListener('click', () => { const s = $('sheet'); if (s) s.styl
   const code = (qs.get('insee') || '').trim().toUpperCase();
   if (!/^(\d{5}|2[AB]\d{3})$/.test(code)) return;
   try {
-    const g = await getJSON(`https://geo.api.gouv.fr/communes/${code}?fields=nom,centre,population,departement,region&format=json&geometry=centre`);
-    const [lon, lat] = g.centre.coordinates;
-    chosen = { name: g.nom, admin1: g.region && g.region.nom, admin2: g.departement && g.departement.nom, population: g.population, latitude: lat, longitude: lon, elevation: null };
+    const g = await getJSON(`https://geo.api.gouv.fr/communes/${code}?fields=nom,centre,mairie,population,departement,region&format=json`);
+    // point de calcul : la mairie (chef-lieu, là où vivent les habitants) ; à défaut, le centre géométrique de la commune
+    const [lon, lat] = (g.mairie || g.centre).coordinates;
+    chosen = { name: qs.get('nom') || g.nom, admin1: g.region && g.region.nom, admin2: g.departement && g.departement.nom, population: g.population, latitude: lat, longitude: lon, elevation: null };
+    if (qs.get('alt') && isFinite(parseFloat(qs.get('alt')))) $('f-alt').value = qs.get('alt');
+    if (qs.get('ski') === '1') $('f-ski').checked = true;
     $('f-place').value = [chosen.name, chosen.admin2, chosen.admin1].filter(Boolean).join(', ');
     await lookupLits();
     $('go').click();
