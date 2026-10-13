@@ -525,7 +525,7 @@ function render(p, R, alt, o) {
       <div class="ski-cap"><span class="air-leg"><i style="background:#9ec3e6"></i>Barres : précipitations moyennes du mois, pluie et neige fondue (mm, échelle de droite)</span>
         <span class="air-leg"><i style="background:#d4452d;height:3px"></i>Courbe rouge : température maximale moyenne, l'après-midi</span>
         <span class="air-leg"><i style="background:#2b6cb0;height:3px"></i>Courbe bleue : température minimale moyenne, la nuit (°C, échelle de gauche)</span><br>
-        Lecture : en ${MOIS[0]}, il fait en moyenne ${fT(R.mon[0].tx)} °C l'après-midi et ${fT(R.mon[0].tn)} °C la nuit, et il tombe ${fr(R.mon[0].pr, 0)} mm d'eau${R.mon[0].sn >= 1 ? `, dont l'équivalent de ${fr(R.mon[0].sn, 0)} cm de neige` : ''}.</div>
+        Lecture : en ${MOIS[0]}, il fait en moyenne ${fT(R.mon[0].tx)} °C l'après-midi et ${fT(R.mon[0].tn)} °C la nuit, et il tombe ${fr(R.mon[0].pr, 0)} mm d'eau${R.mon[0].sn >= 1 ? `, dont environ ${fr(Math.min(R.mon[0].pr, R.mon[0].sn / 0.7), 0)} mm sous forme de neige (≈ ${fr(R.mon[0].sn, 0)} cm de neige fraîche ; 1 mm d'eau donne environ 0,7 cm de neige)` : ''}.</div>
       <div class="kpis">
         <div class="kpi"><b>${fr(R.annT)} °C</b><span>température moyenne</span></div>
         <div class="kpi"><b>${fr(R.annPr, 0)} mm</b><span>de pluie et neige fondue par an</span></div>
