@@ -1,0 +1,670 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Météo à venir</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600&family=Space+Grotesk:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0b1426;--panel:#121f38;--panel2:#18294a;--line:#253a63;
+  --txt:#e6edf8;--mute:#93a4c3;--acc:#5ec8ff;
+  --chaud:#ff7a59;--froid:#5ea8ff;--pluie:#4fd1c5;--neige:#cfe3ff;--vent:#f6c453;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--txt);font:15px/1.5 "Space Grotesk",system-ui,sans-serif}
+.wrap{max-width:1100px;margin:0 auto;padding:24px 16px 60px}
+h1{font:600 2rem/1.15 Fraunces,serif;margin:0 0 4px}
+.sub{color:var(--mute);margin:0 0 20px}
+.mono{font-family:"IBM Plex Mono",monospace}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:16px}
+.search{position:relative;display:flex;gap:8px;flex-wrap:wrap}
+.search input{flex:1;min-width:200px;background:var(--panel2);border:1px solid var(--line);color:var(--txt);border-radius:10px;padding:10px 12px;font:inherit}
+.search input#alt{flex:0 0 170px;min-width:150px}
+.search input:focus{outline:2px solid var(--acc);border-color:transparent}
+button{background:var(--acc);color:#04203a;border:0;border-radius:10px;padding:10px 14px;font:600 14px "Space Grotesk",sans-serif;cursor:pointer}
+button.sec{background:var(--panel2);color:var(--txt);border:1px solid var(--line)}
+.sugg{position:absolute;top:46px;left:0;right:0;background:var(--panel2);border:1px solid var(--line);border-radius:10px;z-index:5;overflow:hidden;display:none}
+.sugg div{padding:9px 12px;cursor:pointer;border-bottom:1px solid var(--line)}
+.sugg div:last-child{border:0}
+.sugg div:hover,.sugg div.on{background:var(--line)}
+.sugg small{color:var(--mute)}
+.head{display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:8px}
+.head h2{font:600 1.5rem Fraunces,serif;margin:0}
+.meta{color:var(--mute);font-size:13px}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-top:14px}
+.kpi{background:var(--panel2);border-radius:10px;padding:10px 12px}
+.kpi b{display:block;font:500 1.3rem "IBM Plex Mono",monospace}
+.kpi span{color:var(--mute);font-size:12px}
+.legend{display:flex;gap:16px;flex-wrap:wrap;font-size:13px;color:var(--mute);margin-bottom:6px}
+.legend i{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:5px;vertical-align:-1px}
+svg{width:100%;height:auto;display:block}
+.days{display:grid;grid-template-columns:repeat(auto-fill,minmax(128px,1fr));gap:8px}
+.day{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:10px;text-align:center}
+.day.tend{opacity:.72;border-style:dashed}
+.day .d{font-weight:600}
+.day .dt{color:var(--mute);font-size:12px}
+.day .ic{font-size:28px;line-height:1.3}
+.day .lb{font-size:12px;color:var(--mute);min-height:32px}
+.day .t{font-family:"IBM Plex Mono",monospace}
+.day .t .mx{color:var(--chaud)} .day .t .mn{color:var(--froid)}
+.day .x{font-size:12px;color:var(--mute);font-family:"IBM Plex Mono",monospace}
+.tags{margin-top:6px;display:flex;gap:4px;flex-wrap:wrap;justify-content:center}
+.tag{font-size:11px;padding:1px 6px;border-radius:20px;background:var(--line)}
+.tag.gel{background:#1d3f7a}.tag.chaud{background:#7a2e1d}.tag.vent{background:#6b5313}.tag.neige{background:#3b4f72}.tag.pluie{background:#145a54}
+.day .nm{font-size:12px;color:var(--mute);font-family:"IBM Plex Mono",monospace}
+.ano{font-family:"IBM Plex Mono",monospace;font-size:12px;margin:2px 0 4px}
+.ano .p{color:var(--chaud)} .ano .m{color:var(--froid)} .ano .z{color:var(--mute)}
+.tag.doux{background:#8a3b12}.tag.frais{background:#1b4f8a}
+.saison h3{font:600 1.2rem Fraunces,serif;margin:0 0 4px}
+.saison h4{font:600 13px "Space Grotesk",sans-serif;color:var(--mute);text-transform:uppercase;letter-spacing:.06em;margin:14px 0 6px}
+.resume{font-size:15px;margin:0}
+.sgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}
+.stile{border:1px solid var(--line);border-radius:10px;padding:10px;text-align:center}
+.stile .per{font-weight:600}
+.stile .an{font:500 1.3rem "IBM Plex Mono",monospace;margin:2px 0}
+.stile .x{font-size:12px;color:var(--mute);font-family:"IBM Plex Mono",monospace}
+.stile .p,.resume .p{color:var(--chaud)} .stile .m,.resume .m{color:var(--froid)} .stile .z,.resume .z{color:var(--mute)}
+.note{color:var(--mute);font-size:13px}
+.err{color:#ff9b9b}
+.hide{display:none}
+.lock{max-width:360px;margin:15vh auto;text-align:center}
+@media print{
+  body{background:#fff;color:#000}
+  .panel,.day,.kpi{background:#fff;border-color:#ccc}
+  .noprint{display:none!important}
+  .day.tend{opacity:1}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Météo à venir</h1>
+  <p class="sub">Prévisions jour par jour sur 16 jours, pour n'importe quelle commune française.</p>
+
+  <div class="panel noprint">
+    <div class="search">
+      <input id="q" placeholder="Nom de commune, code postal ou code INSEE…" autocomplete="off">
+      <input id="alt" type="number" inputmode="numeric" min="-50" max="4810" step="1"
+        placeholder="Altitude (m) : auto" title="Altitude du point en mètres — laisser vide pour l'altitude automatique. Entrée pour appliquer.">
+
+      <button id="geo" class="sec" title="Ma position">📍 Ma position</button>
+      <button id="print" class="sec">🖨️ Imprimer</button>
+      <div id="sugg" class="sugg"></div>
+    </div>
+  </div>
+
+  <div id="msg" class="note"></div>
+
+  <div id="res" class="hide">
+    <div class="panel">
+      <div class="head">
+        <h2 id="nom"></h2>
+        <div class="meta mono" id="coord"></div>
+      </div>
+      <div class="kpis" id="kpis"></div>
+    </div>
+
+    <div class="panel">
+      <div class="legend">
+        <span><i style="background:var(--chaud)"></i>T° max</span>
+        <span><i style="background:var(--froid)"></i>T° min</span>
+        <span><i style="background:var(--pluie)"></i>Pluie (mm)</span>
+        <span><i style="background:var(--neige)"></i>Neige (cm)</span>
+        <span><i style="background:none;border-top:2px dashed var(--chaud);height:0;border-radius:0"></i>Normale max</span>
+        <span><i style="background:none;border-top:2px dashed var(--froid);height:0;border-radius:0"></i>Normale min</span>
+      </div>
+      <div id="chart"></div>
+    </div>
+
+    <div class="panel">
+      <div class="days" id="days"></div>
+      <p class="note" style="margin:12px 0 0">Jours 1 à 7 : prévision fiable. Jours 8 à 16 (cadre pointillé) : simple tendance, à reconfirmer.
+      Seuils : gel ≤ 0 °C, forte chaleur ≥ 30 °C, rafales ≥ 58 km/h, fortes pluies ≥ 20 mm.
+      « Très doux » ou « Très frais » : écart moyen d'au moins 5 °C à la normale.</p>
+      <p class="note" style="margin:6px 0 0">Normales 1991–2020 : moyenne des 30 années pour chaque jour du calendrier, lissée sur 15 jours,
+      à partir de la réanalyse ERA5 (Copernicus) au même point et à la même altitude. Prévision et normales viennent de modèles différents : l'écart est indicatif.</p>
+    </div>
+
+    <div class="panel saison hide" id="saison">
+      <h3>Tendance saisonnière</h3>
+      <p class="resume" id="saisonResume"></p>
+      <div id="saisonCont"></div>
+      <p class="note" style="margin:12px 0 0">Prévisions d'ensemble ECMWF (EC46 pour les semaines, SEAS5 pour les mois).
+      L'écart est calculé par rapport à la climatologie propre au modèle (ses prévisions rétrospectives), et non aux normales 1991–2020 ci-dessus.
+      En Europe, la fiabilité de ces tendances reste modeste : à lire comme une indication de probabilité, pas comme une prévision.</p>
+    </div>
+
+    <div class="panel saison hide" id="neige">
+      <h3>Horizon neige</h3>
+      <p class="resume" id="neigeResume"></p>
+      <h4>Jours de chute de neige par an, selon la trajectoire de réchauffement officielle (TRACC)</h4>
+      <div class="sgrid" id="neigeTuiles"></div>
+      <div id="neigeCourbe" style="margin-top:10px"></div>
+      <p class="note" style="margin:12px 0 0">Méthode : les 30 années ERA5 1991–2020 au point et à l'altitude indiqués sont rejouées avec un réchauffement ajouté.
+      Un jour compte comme « chute de neige » s'il tombe au moins 1 mm d'eau et que la température moyenne du jour, (max + min) / 2, est ≤ 1 °C ; les précipitations sont supposées inchangées.
+      Niveaux TRACC pour la France métropolitaine : +2 °C en 2030, +2,7 °C en 2050, +4 °C en 2100 par rapport au préindustriel ; environ +1,3 °C est déjà inclus dans 1991–2020
+      (estimation à partir des +1,7 °C observés sur 2013–2022), d'où un réchauffement ajouté de +0,7 °C, +1,4 °C et +2,7 °C.
+      Les Alpes se réchauffent plus vite que la moyenne nationale : les résultats sont plutôt optimistes. Il s'agit de neige qui tombe, pas d'enneigement au sol.
+      Même après l'échéance indiquée, des chutes isolées resteront possibles certaines années.</p>
+    </div>
+
+    <p class="note">Source : Open-Meteo (modèles Météo-France AROME/ARPEGE, ECMWF, etc.), mise à jour plusieurs fois par jour. Communes : geo.api.gouv.fr.</p>
+  </div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const JOURS = ["dim.","lun.","mar.","mer.","jeu.","ven.","sam."];
+const MOIS = ["janv.","févr.","mars","avr.","mai","juin","juil.","août","sept.","oct.","nov.","déc."];
+
+const WMO = {
+  0:["☀️","Ciel clair"],1:["🌤️","Peu nuageux"],2:["⛅","Partiellement nuageux"],3:["☁️","Couvert"],
+  45:["🌫️","Brouillard"],48:["🌫️","Brouillard givrant"],
+  51:["🌦️","Bruine faible"],53:["🌦️","Bruine"],55:["🌦️","Bruine forte"],
+  56:["🌧️","Bruine verglaçante"],57:["🌧️","Bruine verglaçante forte"],
+  61:["🌧️","Pluie faible"],63:["🌧️","Pluie"],65:["🌧️","Pluie forte"],
+  66:["🌧️","Pluie verglaçante"],67:["🌧️","Pluie verglaçante forte"],
+  71:["🌨️","Neige faible"],73:["🌨️","Neige"],75:["❄️","Neige forte"],77:["🌨️","Grains de neige"],
+  80:["🌦️","Averses faibles"],81:["🌦️","Averses"],82:["⛈️","Averses violentes"],
+  85:["🌨️","Averses de neige"],86:["❄️","Fortes averses de neige"],
+  95:["⛈️","Orage"],96:["⛈️","Orage avec grêle"],99:["⛈️","Orage, forte grêle"]
+};
+
+const fmt = (v,d=0) => v==null||isNaN(v) ? "–" : v.toFixed(d).replace(".",",");
+const esc = s => String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+
+/* ---------- Recherche de commune ---------- */
+let timer, items=[], sel=-1;
+$("q").addEventListener("input", e=>{
+  clearTimeout(timer);
+  const v=e.target.value.trim();
+  if(v.length<2){hideSugg();return}
+  timer=setTimeout(()=>chercher(v),250);
+});
+$("q").addEventListener("keydown", e=>{
+  const box=$("sugg").children;
+  if(!box.length)return;
+  if(e.key==="ArrowDown"){sel=Math.min(sel+1,box.length-1);e.preventDefault()}
+  else if(e.key==="ArrowUp"){sel=Math.max(sel-1,0);e.preventDefault()}
+  else if(e.key==="Enter"){choisir(items[sel<0?0:sel]);return}
+  else return;
+  [...box].forEach((d,i)=>d.classList.toggle("on",i===sel));
+});
+document.addEventListener("click",e=>{if(!e.target.closest(".search"))hideSugg()});
+function hideSugg(){$("sugg").style.display="none";sel=-1}
+
+async function chercher(v){
+  const f="fields=nom,code,codesPostaux,centre,mairie,departement&limit=8";
+  let url;
+  if(/^\d{5}$/.test(v)) url=`https://geo.api.gouv.fr/communes?codePostal=${v}&${f}`;
+  else if(/^(\d{2}|2[AB])\d{3}$/i.test(v)) url=`https://geo.api.gouv.fr/communes?code=${v.toUpperCase()}&${f}`;
+  else url=`https://geo.api.gouv.fr/communes?nom=${encodeURIComponent(v)}&boost=population&${f}`;
+  try{
+    let r=await (await fetch(url)).json();
+    // un code à 5 chiffres peut être un code INSEE plutôt qu'un code postal
+    if(/^\d{5}$/.test(v)){
+      const r2=await (await fetch(`https://geo.api.gouv.fr/communes?code=${v}&${f}`)).json();
+      r=[...r2,...r.filter(c=>!r2.some(x=>x.code===c.code))];
+    }
+    items=r.filter(c=>c.centre);
+    $("sugg").innerHTML=items.map(c=>`<div>${esc(c.nom)} <small>${esc(c.departement?.nom||"")} · INSEE ${c.code}</small></div>`).join("")
+      || `<div><small>Aucune commune trouvée</small></div>`;
+    [...$("sugg").children].forEach((d,i)=>d.onclick=()=>items[i]&&choisir(items[i]));
+    $("sugg").style.display="block";sel=-1;
+  }catch{ }
+}
+
+function choisir(c){
+  if(!c)return;
+  hideSugg();
+  $("q").value=c.nom;
+  // point de calcul : la mairie (chef-lieu) ; à défaut, le centre géométrique de la commune
+  const [lon,lat]=(c.mairie||c.centre).coordinates;
+  // l'altitude déjà appliquée au point précédent est effacée ; une altitude saisie juste avant le choix est conservée
+  let alt=altSaisie(); if(Number.isNaN(alt))alt=null;
+  if(etat&&alt!=null&&alt===altNorm(etat.c.alt)){alt=null;$("alt").value=""}
+  const p=new URLSearchParams(location.search);
+  p.set("insee",c.code);p.delete("lat");p.delete("lon");p.delete("nom");
+  alt==null?p.delete("alt"):p.set("alt",alt);
+  history.replaceState(null,"","?"+p);
+  charger({nom:c.nom,insee:c.code,dep:c.departement?.nom,lat,lon,alt});
+}
+
+/* ---------- Altitude du point ---------- */
+// null = automatique ; NaN = saisie invalide
+function altSaisie(){
+  const v=$("alt").value.trim();
+  if(v==="")return null;
+  const n=Math.round(+v);
+  return isFinite(n)&&n>=-50&&n<=4810?n:NaN;
+}
+const altNorm=a=>a==null||a===""?null:Math.round(+a);
+function appliquerAlt(){
+  const a=altSaisie();
+  if(Number.isNaN(a)){$("msg").innerHTML=`<span class="err">Altitude invalide : entrez un nombre entre −50 et 4 810 m.</span>`;return}
+  if(!etat)return;                         // aucun point chargé : l'altitude servira au prochain
+  if(a===altNorm(etat.c.alt))return;        // déjà appliquée (évite le double déclenchement Entrée + change)
+  const p=new URLSearchParams(location.search);
+  a==null?p.delete("alt"):p.set("alt",a);
+  history.replaceState(null,"","?"+p);
+  charger({...etat.c,alt:a});
+}
+$("alt").addEventListener("change",appliquerAlt);
+$("alt").addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();appliquerAlt()}});
+
+$("geo").onclick=()=>{
+  if(!navigator.geolocation){$("msg").textContent="Géolocalisation indisponible.";return}
+  $("msg").textContent="Localisation…";
+  navigator.geolocation.getCurrentPosition(async pos=>{
+    const {latitude:lat,longitude:lon,altitude:gps}=pos.coords;
+    // altitude : saisie si présente, sinon celle du GPS (smartphone), sinon automatique
+    let alt=altSaisie(); if(Number.isNaN(alt))alt=null;
+    if(alt==null&&gps!=null&&isFinite(gps)){alt=Math.round(gps);$("alt").value=alt}
+    let nom="Ma position",insee=null,dep="";
+    try{
+      const r=await (await fetch(`https://geo.api.gouv.fr/communes?lat=${lat}&lon=${lon}&fields=nom,code,departement`)).json();
+      if(r[0]){nom=r[0].nom;insee=r[0].code;dep=r[0].departement?.nom}
+    }catch{}
+    charger({nom,insee,dep,lat,lon,alt});
+  },()=>$("msg").textContent="Position refusée.");
+};
+$("print").onclick=()=>window.print();
+
+/* ---------- Prévisions ---------- */
+async function charger(c){
+  $("msg").textContent="Chargement des prévisions…";
+  const daily="weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max,snowfall_sum,wind_gusts_10m_max,sunshine_duration";
+  let url=`https://api.open-meteo.com/v1/forecast?latitude=${c.lat}&longitude=${c.lon}&daily=${daily}&timezone=Europe%2FParis&forecast_days=16`;
+  if(altNorm(c.alt)!=null) url+=`&elevation=${altNorm(c.alt)}`;
+  try{
+    const r=await fetch(url);
+    if(!r.ok) throw new Error("HTTP "+r.status);
+    const j=await r.json();
+    const jeton=Symbol(); etat={c,j,N:null,jeton};
+    afficher(c,j,null);
+    $("saison").classList.add("hide");
+    $("neige").classList.add("hide");
+    chargerSaison(c,jeton).catch(e=>{
+      if(etat.jeton!==jeton)return;
+      $("saison").classList.remove("hide");
+      $("saisonResume").textContent="";
+      $("saisonCont").innerHTML=`<p class="err">Tendance saisonnière indisponible (${esc(e.message)}).</p>`;
+    });
+    $("msg").textContent="Calcul des normales 1991–2020…";
+    try{
+      const N=await chargerNormales(c,j.elevation);
+      if(etat.jeton!==jeton) return;   // une autre commune a été choisie entre-temps
+      etat.N=N; afficher(c,j,N);
+      afficherNeige(N,j.elevation);
+      $("msg").textContent="";
+    }catch(e){
+      if(etat.jeton===jeton) $("msg").innerHTML=`<span class="err">Normales indisponibles (${esc(e.message)}) — prévisions seules.</span>`;
+    }
+  }catch(e){
+    $("msg").innerHTML=`<span class="err">Impossible de charger les prévisions (${esc(e.message)}).</span>`;
+  }
+}
+
+/* ---------- Normales 1991–2020 ---------- */
+let etat=null;
+const CUM=[0,31,59,90,120,151,181,212,243,273,304,334];
+// jour de l'année 0..364 ; le 29 février compte comme le 28
+const jda=t=>{const m=+t.slice(5,7),d=+t.slice(8,10);return CUM[m-1]+(m===2&&d===29?28:d)-1};
+
+async function chargerNormales(c,elev){
+  const alt=Math.round(elev);
+  const cle=`nrm3_${(+c.lat).toFixed(3)}_${(+c.lon).toFixed(3)}_${alt}`;
+  try{const v=localStorage.getItem(cle);if(v)return JSON.parse(v)}catch{}
+  const url=`https://archive-api.open-meteo.com/v1/archive?latitude=${c.lat}&longitude=${c.lon}`+
+    `&start_date=1991-01-01&end_date=2020-12-31&daily=temperature_2m_max,temperature_2m_min,precipitation_sum`+
+    `&timezone=Europe%2FParis&elevation=${alt}`;
+  const r=await fetch(url);
+  if(!r.ok) throw new Error(r.status===429?"quota Open-Meteo atteint, réessayez plus tard":"HTTP "+r.status);
+  const j=await r.json();
+  if(!j.daily) throw new Error(j.reason||"données absentes");
+  const S={tx:new Array(365).fill(0),tn:new Array(365).fill(0),p:new Array(365).fill(0)},
+        K={tx:new Array(365).fill(0),tn:new Array(365).fill(0),p:new Array(365).fill(0)};
+  const src={tx:j.daily.temperature_2m_max,tn:j.daily.temperature_2m_min,p:j.daily.precipitation_sum};
+  j.daily.time.forEach((t,i)=>{
+    const m=+t.slice(5,7),d=+t.slice(8,10);
+    if(m===2&&d===29)return;
+    const k=jda(t);
+    for(const v in src){const x=src[v][i];if(x!=null){S[v][k]+=x;K[v][k]++}}
+  });
+  const N={};
+  for(const v in S){
+    const brut=S[v].map((s,k)=>K[v][k]?s/K[v][k]:null);
+    N[v]=brut.map((_,k)=>{let s=0,n=0;
+      for(let o=-7;o<=7;o++){const x=brut[(k+o+365)%365];if(x!=null){s+=x;n++}}
+      return n?Math.round(s/n*10)/10:null});
+  }
+  // Horizon neige : jours de chute de neige par an pour un réchauffement ajouté de 0 à 5 °C (pas de 0,05 °C)
+  const tx=j.daily.temperature_2m_max, tn=j.daily.temperature_2m_min, pr=j.daily.precipitation_sum;
+  const tm=tx.map((v,i)=>v!=null&&tn[i]!=null?(v+tn[i])/2:null);   // température moyenne (max+min)/2, comme les fiches mairies
+  const humides=[];
+  for(let i=0;i<tm.length;i++) if(pr[i]!=null&&pr[i]>=1&&tm[i]!=null) humides.push(tm[i]);
+  const ans=new Set(j.daily.time.map(t=>t.slice(0,4))).size||30;
+  N.neige=[];
+  for(let k=0;k<=100;k++){const dt=k*0.05;let n=0;
+    for(const t of humides) if(t+dt<=SEUIL_NEIGE) n++;
+    N.neige.push(Math.round(n/ans*10)/10);}
+  try{localStorage.setItem(cle,JSON.stringify(N))}catch{}
+  return N;
+}
+
+const ecart=v=>{
+  if(v==null||isNaN(v))return `<span class="z">–</span>`;
+  const r=Math.round(v*10)/10;
+  return `<span class="${r>0?"p":r<0?"m":"z"}">${r>0?"+":r<0?"−":"±"}${fmt(Math.abs(r),1)}°</span>`;
+};
+
+function afficher(c,j,N){
+  const D=j.daily, n=D.time.length;
+  $("res").classList.remove("hide");
+  $("nom").textContent=c.nom+(c.dep?` (${c.dep})`:"");
+  $("coord").textContent=`${c.insee?"INSEE "+c.insee+" · ":""}${c.lat.toFixed(3)}, ${c.lon.toFixed(3)} · alt. ${Math.round(j.elevation)} m ${altNorm(c.alt)!=null?"(saisie)":"(auto)"}`;
+  $("alt").placeholder=altNorm(c.alt)!=null?"Altitude (m) : auto":`Auto : ${Math.round(j.elevation)} m`;
+  document.title=`Météo à venir – ${c.nom}`;
+
+  // Synthèse
+  const somme=a=>a.reduce((s,v)=>s+(v||0),0);
+  const tmax=Math.max(...D.temperature_2m_max), tmin=Math.min(...D.temperature_2m_min);
+  const gel=D.temperature_2m_min.filter(v=>v<=0).length;
+  const pluie7=somme(D.precipitation_sum.slice(0,7)), neige=somme(D.snowfall_sum);
+  const raf=Math.max(...D.wind_gusts_10m_max);
+  $("kpis").innerHTML=[
+    [fmt(tmax,1)+" °C","T° max sur 16 j"],
+    [fmt(tmin,1)+" °C","T° min sur 16 j"],
+    [gel+" j","Jours de gel"],
+    [fmt(pluie7,0)+" mm","Pluie sur 7 jours"],
+    [fmt(neige,0)+" cm","Neige sur 16 j"],
+    [fmt(raf,0)+" km/h","Rafale max"],
+    ...(N?(()=>{
+      const k7=D.time.slice(0,7).map(jda);
+      const ec=k7.map((k,i)=>((D.temperature_2m_max[i]-N.tx[k])+(D.temperature_2m_min[i]-N.tn[k]))/2);
+      const moy=ec.reduce((s,v)=>s+v,0)/ec.length;
+      const pn=k7.reduce((s,k)=>s+(N.p[k]||0),0);
+      return [
+        [ecart(moy),"Écart T° moyen sur 7 j"],
+        [pn>0?Math.round(pluie7/pn*100)+" %":"–",`Pluie 7 j / normale (${fmt(pn,0)} mm)`]
+      ];
+    })():[])
+  ].map(([b,s])=>`<div class="kpi"><b>${b}</b><span>${s}</span></div>`).join("");
+
+  // Cartes jour
+  $("days").innerHTML=D.time.map((t,i)=>{
+    const d=new Date(t+"T12:00");
+    const [ic,lb]=WMO[D.weather_code[i]]||["❔","—"];
+    const mx=D.temperature_2m_max[i], mn=D.temperature_2m_min[i];
+    const p=D.precipitation_sum[i], pp=D.precipitation_probability_max[i];
+    const s=D.snowfall_sum[i], g=D.wind_gusts_10m_max[i];
+    const k=jda(t);
+    const nx=N?N.tx[k]:null, nn=N?N.tn[k]:null;
+    const tags=[];
+    if(N){const e=((mx-nx)+(mn-nn))/2;
+      if(e>=5)tags.push(`<span class="tag doux">Très doux</span>`);
+      else if(e<=-5)tags.push(`<span class="tag frais">Très frais</span>`);}
+    if(mn<=0)tags.push(`<span class="tag gel">Gel</span>`);
+    if(mx>=30)tags.push(`<span class="tag chaud">Chaleur</span>`);
+    if(g>=58)tags.push(`<span class="tag vent">Rafales</span>`);
+    if(s>0.5)tags.push(`<span class="tag neige">Neige</span>`);
+    if(p>=20)tags.push(`<span class="tag pluie">Fortes pluies</span>`);
+    const nomJ=i===0?"Aujourd'hui":i===1?"Demain":JOURS[d.getDay()];
+    return `<div class="day${i>=7?" tend":""}">
+      <div class="d">${nomJ}</div><div class="dt">${d.getDate()} ${MOIS[d.getMonth()]}</div>
+      <div class="ic">${ic}</div><div class="lb">${lb}</div>
+      <div class="t"><span class="mx">${fmt(mx)}°</span> / <span class="mn">${fmt(mn)}°</span></div>
+      ${N?`<div class="nm">norm. ${fmt(nx)}° / ${fmt(nn)}°</div>
+      <div class="ano">${ecart(mx-nx)} / ${ecart(mn-nn)}</div>`:""}
+      <div class="x">💧 ${fmt(p,1)} mm${pp!=null?` · ${pp} %`:""}</div>
+      ${s>0.5?`<div class="x">❄️ ${fmt(s,0)} cm</div>`:""}
+      <div class="x">💨 ${fmt(g)} km/h</div>
+      ${tags.length?`<div class="tags">${tags.join("")}</div>`:""}
+    </div>`;
+  }).join("");
+
+  dessiner(D,n,N);
+}
+
+/* ---------- Tendance saisonnière (ECMWF EC46 + SEAS5) ---------- */
+const MOIS_L=["janvier","février","mars","avril","mai","juin","juillet","août","septembre","octobre","novembre","décembre"];
+const isoJ=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+
+async function chargerSaison(c,jeton){
+  const auj=isoJ(new Date());
+  const cle=`ssn1_${(+c.lat).toFixed(2)}_${(+c.lon).toFixed(2)}_${auj}`;
+  let j=null;
+  try{const v=localStorage.getItem(cle);if(v)j=JSON.parse(v)}catch{}
+  if(!j){
+    const base=`https://seasonal-api.open-meteo.com/v1/seasonal?latitude=${c.lat}&longitude=${c.lon}&timezone=Europe%2FParis`;
+    const mv="temperature_2m_mean,temperature_2m_anomaly,precipitation_mean,precipitation_anomaly";
+    // 1er essai avec la probabilité « plus chaud que la normale », puis sans si l'API la refuse
+    const essais=[`${base}&weekly=${mv},temperature_2m_anomaly_gt0&monthly=${mv}`,`${base}&weekly=${mv}&monthly=${mv}`];
+    let derniere="";
+    for(const url of essais){
+      const r=await fetch(url);
+      if(r.status===429) throw new Error("quota Open-Meteo atteint, réessayez plus tard");
+      const k=await r.json().catch(()=>null);
+      if(r.ok&&k&&!k.error){j=k;break}
+      derniere=k?.reason||"HTTP "+r.status;
+    }
+    if(!j) throw new Error(derniere);
+    try{localStorage.setItem(cle,JSON.stringify(j))}catch{}
+  }
+  if(etat.jeton!==jeton)return;
+  afficherSaison(j,auj);
+}
+
+// série d'une variable ; si l'API renvoie les membres séparément, on fait la moyenne
+function serie(b,nom){
+  if(!b||!b.time)return null;
+  if(b[nom])return b[nom];
+  const ks=Object.keys(b).filter(k=>k.startsWith(nom+"_member"));
+  if(!ks.length)return null;
+  return b.time.map((_,i)=>{let s=0,n=0;ks.forEach(k=>{const v=b[k][i];if(v!=null){s+=v;n++}});return n?s/n:null});
+}
+const teinte=a=>{
+  if(a==null||isNaN(a))return "var(--panel2)";
+  const al=(Math.min(Math.abs(a)/3,1)*.45+.06).toFixed(2);
+  return a>=0?`rgba(255,122,89,${al})`:`rgba(94,168,255,${al})`;
+};
+const ratioPluie=(m,a)=>{
+  if(m==null||a==null)return "–";
+  const clim=m-a;
+  return clim>0.01?Math.round(m/clim*100)+" %":"–";
+};
+
+function afficherSaison(j,auj){
+  const W=j.weekly, M=j.monthly;
+  const tuiles=[];
+  let somme=0,nb=0,html="";
+
+  const wTime=W?.time||[];
+  const wa=serie(W,"temperature_2m_anomaly"), wpm=serie(W,"precipitation_mean"), wpa=serie(W,"precipitation_anomaly");
+  const wpr=serie(W,"temperature_2m_anomaly_gt0");
+  const enFraction=wpr&&wpr.every(v=>v==null||v<=1);
+  const sem=wTime.map((t,i)=>i).filter(i=>{
+    const f=new Date(wTime[i]+"T12:00");f.setDate(f.getDate()+6);return isoJ(f)>=auj}).slice(0,6);
+  if(wa&&sem.length){
+    html+=`<h4>6 prochaines semaines</h4><div class="sgrid">`+sem.map(i=>{
+      const d=new Date(wTime[i]+"T12:00"), f=new Date(d);f.setDate(f.getDate()+6);
+      const per=d.getMonth()===f.getMonth()?`${d.getDate()}–${f.getDate()} ${MOIS[f.getMonth()]}`
+        :`${d.getDate()} ${MOIS[d.getMonth()]} – ${f.getDate()} ${MOIS[f.getMonth()]}`;
+      const a=wa[i]; if(a!=null){somme+=a;nb++}
+      let pr=wpr?wpr[i]:null; if(pr!=null&&enFraction)pr*=100;
+      return `<div class="stile" style="background:${teinte(a)}">
+        <div class="per">${per}</div><div class="an">${ecart(a)}</div>
+        <div class="x">💧 pluie ${ratioPluie(wpm?.[i],wpa?.[i])} de la normale</div>
+        ${pr!=null?`<div class="x">${Math.round(pr)} % de chances plus chaud</div>`:""}
+      </div>`}).join("")+`</div>`;
+  }
+
+  const mTime=M?.time||[];
+  const ma=serie(M,"temperature_2m_anomaly"), mpm=serie(M,"precipitation_mean"), mpa=serie(M,"precipitation_anomaly");
+  const mois=mTime.map((t,i)=>i).filter(i=>{
+    const d=new Date(mTime[i]+"T12:00");return isoJ(new Date(d.getFullYear(),d.getMonth()+1,0))>=auj}).slice(0,3);
+  if(ma&&mois.length){
+    html+=`<h4>3 prochains mois</h4><div class="sgrid">`+mois.map(i=>{
+      const d=new Date(mTime[i]+"T12:00");
+      const a=ma[i];
+      if(!nb&&a!=null){somme+=a;nb++}   // pas de semaines : la synthèse s'appuie sur les mois
+      return `<div class="stile" style="background:${teinte(a)}">
+        <div class="per">${MOIS_L[d.getMonth()]} ${d.getFullYear()}</div><div class="an">${ecart(a)}</div>
+        <div class="x">💧 pluie ${ratioPluie(mpm?.[i],mpa?.[i])} de la normale</div>
+      </div>`}).join("")+`</div>`;
+  }
+
+  if(!html) throw new Error("aucune donnée renvoyée pour ce point");
+  const m=nb?somme/nb:null;
+  $("saisonResume").innerHTML=m==null?"":
+    `Tendance ${Math.abs(m)<0.5?"proche de la normale":m>0?"plus douce que la normale":"plus fraîche que la normale"}
+     sur les ${sem.length&&wa?"prochaines semaines":"prochains mois"} (écart moyen ${ecart(m)}).`;
+  $("saisonCont").innerHTML=html;
+  $("saison").classList.remove("hide");
+}
+
+/* ---------- Horizon neige ---------- */
+const SEUIL_NEIGE=1;            // °C, température moyenne du jour sous laquelle la précipitation tombe en neige
+const BASE_1991_2020=1.3;       // °C de réchauffement (vs préindustriel) déjà contenu dans la période 1991–2020
+const TRACC=[[2005,BASE_1991_2020],[2030,2],[2050,2.7],[2100,4]];
+const RARE=1;                   // « la neige devient rare » : moins de 1 jour de chute par an en moyenne
+const M_PAR_DEGRE=150;          // remontée approximative de la limite pluie-neige par °C
+
+function rechauffement(an){
+  for(let i=1;i<TRACC.length;i++){const [a0,w0]=TRACC[i-1],[a1,w1]=TRACC[i];
+    if(an<=a1)return w0+(w1-w0)*(an-a0)/(a1-a0);}
+  return TRACC[TRACC.length-1][1];
+}
+const joursNeige=(N,an)=>{
+  const dt=Math.max(0,rechauffement(an)-BASE_1991_2020);
+  return N.neige[Math.min(100,Math.round(dt/0.05))];
+};
+const fmtJ=v=>v>=10?fmt(v,0):fmt(v,1);
+
+function afficherNeige(N,elev){
+  if(!N.neige){$("neige").classList.add("hide");return}
+  const j0=N.neige[0], alt=Math.round(elev);
+  // échéances
+  let rare=null, moitie=null;
+  for(let an=2026;an<=2100;an++){
+    const d=joursNeige(N,an);
+    if(moitie==null&&d<=j0/2)moitie=an;
+    if(rare==null&&d<RARE)rare=an;
+  }
+  let txt;
+  if(j0<RARE) txt=`À ${alt} m, la neige est déjà rare dans le climat actuel : environ ${fmtJ(j0)} jour de chute par an en moyenne sur 1991–2020.`;
+  else if(rare===2026) txt=`À ${alt} m, la neige est <b>déjà devenue rare</b> avec le réchauffement actuel : moins de ${RARE} jour de chute par an, contre ${fmtJ(j0)} en moyenne sur 1991–2020.`;
+  else if(rare) txt=`À ${alt} m, la neige devient rare (moins de ${RARE} jour de chute par an en moyenne) <b>vers ${rare}</b>`+
+      (moitie&&moitie<rare?`. Le nombre de jours de neige est divisé par deux vers ${moitie}.`:".");
+  else txt=`À ${alt} m, la neige reste présente jusqu'en 2100 : environ <b>${fmtJ(joursNeige(N,2100))} jours</b> de chute par an, contre ${fmtJ(j0)} aujourd'hui`+
+      (moitie?` (divisé par deux vers ${moitie}).`:".");
+  $("neigeResume").innerHTML=txt;
+
+  // tuiles
+  const lignes=[["Climat 1991–2020",null],["2030",2030],["2050",2050],["2100",2100]];
+  $("neigeTuiles").innerHTML=lignes.map(([lab,an])=>{
+    const d=an?joursNeige(N,an):j0;
+    const dt=an?rechauffement(an)-BASE_1991_2020:0;
+    const pc=j0>0&&an?Math.round((d/j0-1)*100):null;
+    const eq=Math.round((alt-dt*M_PAR_DEGRE)/10)*10;
+    return `<div class="stile" style="background:${an?teinte(dt):"var(--panel2)"}">
+      <div class="per">${lab}</div>
+      <div class="an">${fmtJ(d)} j</div>
+      <div class="x">${an?`${pc!=null?(pc>0?"+":"")+pc+" %":"–"} · +${fmt(dt,1)} °C`:"référence"}</div>
+      ${an?`<div class="x">≈ climat actuel à ${eq} m</div>`:""}
+    </div>`;}).join("");
+
+  // courbe 2005–2100
+  const W=1000,H=200,L=44,R=16,T=12,B=28,w=W-L-R,h=H-T-B;
+  const top=Math.max(2,Math.ceil(j0*1.1));
+  const x=an=>L+w*(an-2005)/95, y=v=>T+h*(1-v/top);
+  let s=`<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Jours de chute de neige par an jusqu'en 2100">`;
+  for(let k=0;k<=4;k++){const v=top*k/4;
+    s+=`<line x1="${L}" x2="${W-R}" y1="${y(v)}" y2="${y(v)}" stroke="var(--line)" stroke-dasharray="3 4"/>
+        <text x="${L-6}" y="${y(v)+4}" fill="var(--mute)" font-size="12" text-anchor="end">${fmtJ(v)}</text>`;}
+  if(j0>=RARE) s+=`<line x1="${L}" x2="${W-R}" y1="${y(RARE)}" y2="${y(RARE)}" stroke="var(--chaud)" stroke-dasharray="6 4"/>
+     <text x="${W-R}" y="${y(RARE)-5}" fill="var(--chaud)" font-size="11" text-anchor="end">seuil « neige rare »</text>`;
+  const pts=[];for(let an=2005;an<=2100;an++)pts.push(`${x(an)},${y(joursNeige(N,an))}`);
+  s+=`<polyline fill="none" stroke="var(--neige)" stroke-width="2.5" points="${pts.join(" ")}"/>`;
+  [2005,2030,2050,2100].forEach(an=>{const v=an===2005?j0:joursNeige(N,an);
+    s+=`<circle cx="${x(an)}" cy="${y(v)}" r="4" fill="var(--neige)"><title>${an===2005?"1991–2020":an} : ${fmtJ(v)} j</title></circle>
+        <text x="${x(an)}" y="${H-8}" fill="var(--mute)" font-size="12" text-anchor="middle">${an===2005?"1991–2020":an}</text>`;});
+  if(rare&&j0>=RARE) s+=`<line x1="${x(rare)}" x2="${x(rare)}" y1="${T}" y2="${T+h}" stroke="var(--chaud)" stroke-width="1.5"/>
+     <text x="${x(rare)+5}" y="${T+14}" fill="var(--chaud)" font-size="12">${rare}</text>`;
+  $("neigeCourbe").innerHTML=s+"</svg>";
+  $("neige").classList.remove("hide");
+}
+
+/* ---------- Graphique SVG ---------- */
+function dessiner(D,n,N){
+  const W=1000,H=320,L=44,R=44,T=16,B=40, w=W-L-R, h=H-T-B;
+  const tx=D.temperature_2m_max, tn=D.temperature_2m_min;
+  const ks=D.time.map(jda);
+  const nx=N?ks.map(k=>N.tx[k]):[], nn=N?ks.map(k=>N.tn[k]):[];
+  let lo=Math.floor(Math.min(...tn,...nn)/5)*5, hi=Math.ceil(Math.max(...tx,...nx)/5)*5;
+  if(hi-lo<10)hi=lo+10;
+  const pMax=Math.max(10,...D.precipitation_sum.map((p,i)=>p+(D.snowfall_sum[i]||0)));
+  const pTop=Math.ceil(pMax/5)*5;
+  const step=w/n, x=i=>L+step*(i+.5);
+  const yT=v=>T+h*(1-(v-lo)/(hi-lo));
+  const yP=v=>T+h*(1-v/pTop);
+  let s=`<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Graphique des prévisions">`;
+  // zone tendance
+  if(n>7) s+=`<rect x="${L+step*7}" y="${T}" width="${step*(n-7)}" height="${h}" fill="var(--panel2)"/>
+    <text x="${L+step*7+6}" y="${T+14}" fill="var(--mute)" font-size="12">tendance</text>`;
+  // grille températures
+  for(let v=lo;v<=hi;v+=5){
+    s+=`<line x1="${L}" x2="${W-R}" y1="${yT(v)}" y2="${yT(v)}" stroke="var(--line)" ${v===0?'stroke-width="1.5"':'stroke-dasharray="3 4"'}/>
+      <text x="${L-6}" y="${yT(v)+4}" fill="var(--mute)" font-size="12" text-anchor="end">${v}°</text>`;
+  }
+  // axe pluie
+  for(let k=0;k<=4;k++){const v=pTop*k/4;
+    s+=`<text x="${W-R+6}" y="${yP(v)+4}" fill="var(--pluie)" font-size="11">${Math.round(v)}</text>`;}
+  // barres pluie + neige
+  const bw=step*.5;
+  D.precipitation_sum.forEach((p,i)=>{
+    const sn=D.snowfall_sum[i]||0;
+    if(p>0) s+=`<rect x="${x(i)-bw/2}" y="${yP(p)}" width="${bw}" height="${yP(0)-yP(p)}" fill="var(--pluie)" opacity=".55" rx="2"/>`;
+    if(sn>0) s+=`<rect x="${x(i)-bw/2}" y="${yP(p+sn)}" width="${bw}" height="${yP(0)-yP(sn)}" fill="var(--neige)" opacity=".75" rx="2"/>`;
+  });
+  // courbes
+  const ligne=(a,c)=>{
+    s+=`<polyline fill="none" stroke="${c}" stroke-width="2.5" points="${a.map((v,i)=>`${x(i)},${yT(v)}`).join(" ")}"/>`;
+    a.forEach((v,i)=>s+=`<circle cx="${x(i)}" cy="${yT(v)}" r="3.5" fill="${c}"><title>${fmt(v,1)} °C</title></circle>`);
+  };
+  if(N){
+    const tir=(a,c,lab)=>s+=`<polyline fill="none" stroke="${c}" stroke-width="2" stroke-dasharray="6 5" opacity=".75" points="${a.map((v,i)=>`${x(i)},${yT(v)}`).join(" ")}"><title>${lab}</title></polyline>`;
+    tir(nx,"var(--chaud)","Normale max 1991–2020");tir(nn,"var(--froid)","Normale min 1991–2020");
+  }
+  ligne(tx,"var(--chaud)");ligne(tn,"var(--froid)");
+  // étiquettes jours
+  D.time.forEach((t,i)=>{const d=new Date(t+"T12:00");
+    s+=`<text x="${x(i)}" y="${H-22}" fill="var(--mute)" font-size="12" text-anchor="middle">${JOURS[d.getDay()]}</text>
+        <text x="${x(i)}" y="${H-8}" fill="var(--mute)" font-size="11" text-anchor="middle">${d.getDate()}/${d.getMonth()+1}</text>`;});
+  $("chart").innerHTML=s+"</svg>";
+}
+
+/* ---------- Lancement par URL ---------- */
+(async()=>{
+  const p=new URLSearchParams(location.search);
+  const insee=p.get("insee"), lat=parseFloat(p.get("lat")), lon=parseFloat(p.get("lon"));
+  if(p.get("alt")) $("alt").value=p.get("alt");
+  if(insee){
+    try{
+      const c=await (await fetch(`https://geo.api.gouv.fr/communes/${encodeURIComponent(insee)}?fields=nom,code,centre,mairie,departement`)).json();
+      if(c.centre){$("q").value=c.nom;
+        const [lo,la]=(c.mairie||c.centre).coordinates;
+        return charger({nom:p.get("nom")||c.nom,insee:c.code,dep:c.departement?.nom,lat:la,lon:lo,alt:p.get("alt")});}
+    }catch{}
+    $("msg").innerHTML=`<span class="err">Code INSEE ${esc(insee)} introuvable.</span>`;
+  } else if(!isNaN(lat)&&!isNaN(lon)){
+    charger({nom:p.get("nom")||"Point choisi",lat,lon,alt:p.get("alt")});
+  } else {
+    $("msg").textContent="Cherchez une commune pour afficher ses prévisions.";
+  }
+})();
+</script>
+</body>
+</html>
