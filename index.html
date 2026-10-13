@@ -641,9 +641,15 @@ $('go').addEventListener('click', async () => {
   const altIn = $('f-alt').value.trim().replace(',', '.');
   let elev = null; if (altIn) { elev = parseFloat(altIn); if (!isFinite(elev) || elev < -400 || elev > 6000) return msg('Altitude invalide (en mètres).', true); }
   $('go').disabled = true; msg('Récupération de 75 ans de données…');
+  const key = `${chosen.latitude},${chosen.longitude},${elev}`;
+  let D;
+  try { D = cache[key] || (cache[key] = await fetchAll({ lat: chosen.latitude, lon: chosen.longitude }, elev)); }
+  catch (e) {
+    delete cache[key];
+    const q = /429/.test(e.message) ? ' (quota Open-Meteo atteint : patientez une minute)' : '';
+    msg('Impossible de récupérer les données' + q + '. Réessayez dans un instant.', true); $('go').disabled = false; return;
+  }
   try {
-    const key = `${chosen.latitude},${chosen.longitude},${elev}`;
-    const D = cache[key] || (cache[key] = await fetchAll({ lat: chosen.latitude, lon: chosen.longitude }, elev));
     msg('Calcul…');
     const R = analyse(D);
     let airData = null;
@@ -656,30 +662,35 @@ $('go').addEventListener('click', async () => {
     render({ name: chosen.name, admin1: chosen.admin1, admin2: chosen.admin2, population: chosen.population, lat: chosen.latitude, lon: chosen.longitude }, R, alt,
       { color: $('f-color').value, stn: $('f-stn').checked && stnRec && stnRec.stations.length ? stnRec.stations[+$('f-stn-pick').value || 0] : null, stnNote: stnMeta ? stnNoteOf({ meta: stnMeta }) : '', lits: parseLits(), litsNote: litsAuto && parseLits() === litsAuto.lits ? litsAuto.note : '', mention: $('f-mention').value.trim(), tour: $('f-tour').checked, ski: $('f-ski').checked, futur: $('f-futur').checked, air: $('f-air').checked, ytd: $('f-ytd').checked, hist: $('f-hist').checked, airData });
     $('print').disabled = false; msg('Fiche prête.');
-  } catch (e) { delete cache[`${chosen.latitude},${chosen.longitude},${elev}`]; msg('Impossible de récupérer les données. Réessayez dans un instant.', true); }
+  } catch (e) { console.error(e); msg('Erreur pendant la création de la fiche : ' + e.message, true); }
   $('go').disabled = false;
 });
-let litsAuto = null, stnRec = null, stnMeta = null;
+let litsAuto = null, stnRec = null, stnMeta = null, stnKnown = false;   // stnKnown : la recherche station de la commune est terminée
 function fillStnPick() {
-  const p = $('f-stn-pick'), st = stnRec ? stnRec.stations : [];
+  const p = $('f-stn-pick'), st = stnRec ? stnRec.stations : [], box = $('f-stn');
+  // commune sans station connue : la case est décochée et bloquée
+  const none = stnKnown && !st.length;
+  box.disabled = none; if (none) box.checked = false;
+  box.closest('label').style.opacity = none ? '.5' : '';
   p.innerHTML = st.map((s, i) => `<option value="${i}">${esc(s.station)}</option>`).join('');
-  p.classList.toggle('hidden', !($('f-stn').checked && st.length > 1));
-  $('stn-hint').textContent = $('f-stn').checked && !st.length ? 'Pas de donnée station pour cette commune.' : '';
+  p.classList.toggle('hidden', !(box.checked && st.length > 1));
+  $('stn-hint').textContent = none ? 'Pas de donnée station pour cette commune : option indisponible.' : '';
 }
 $('f-stn').addEventListener('change', () => { fillStnPick(); if (current) $('go').click(); });
 $('f-stn-pick').addEventListener('change', () => { if (current) $('go').click(); });
 async function lookupLits() {
   litsAuto = null; const h = $('lits-hint'), c = chosen; if (!c) return;
+  stnKnown = false; stnRec = null; fillStnPick();
   const base = 'Si renseigné, « N lits touristiques » s\'affiche sous le nom de la commune. Rempli automatiquement pour les stations de Savoie.';
   h.textContent = 'Recherche des lits touristiques…';
   try {
     const r = await getJSON(`https://geo.api.gouv.fr/communes?lat=${c.latitude}&lon=${c.longitude}&fields=code&format=json`);
-    const rec = r[0] ? await stationRec(r[0].code) : null; stnRec = rec; stnMeta = rec ? (await stationsData()).meta : null; if (rec && rec.stations.length && c === chosen) $('f-stn').checked = true; fillStnPick();
+    const rec = r[0] ? await stationRec(r[0].code) : null; if (c !== chosen) return; stnRec = rec; stnKnown = true; stnMeta = rec ? (await stationsData()).meta : null; if (rec && rec.stations.length && c === chosen) $('f-stn').checked = true; fillStnPick();
     const res = rec && litsOf(rec);
     if (c !== chosen) return;
     if (res) { $('f-lits').value = fr(res.lits, 0); litsAuto = res; h.textContent = `Trouvé : ${res.stations} · ${res.note}. Modifiable ; vider le champ pour ne rien afficher.`; }
     else { $('f-lits').value = ''; h.textContent = 'Pas de donnée pour cette commune : saisir à la main si besoin.'; }
-  } catch (e) { h.textContent = base; }
+  } catch (e) { h.textContent = base; stnKnown = false; fillStnPick(); }
   if (current) $('go').click();
 }
 $('f-lits').addEventListener('input', () => { litsAuto = null; });
