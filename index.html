@@ -157,6 +157,7 @@
         <select id="f-stn-pick" class="hidden" style="margin-top:6px" aria-label="Station"></select>
         <p class="hint" id="stn-hint"></p>
         <label class="check"><input type="checkbox" id="f-ski"> Station de ski : cumul de neige par saison depuis 1950</label>
+        <label class="check"><input type="checkbox" id="f-futur"> Horizon neige : jours de chute de neige en 2030, 2050 et 2100 (trajectoire officielle TRACC)</label>
         <label class="check"><input type="checkbox" id="f-hist" checked> Depuis 1950 : bandes de température année par année et tableau des jours de gel, de chaleur, de neige…</label>
         <label class="check"><input type="checkbox" id="f-ytd" checked> Année en cours face à la normale : écart de température et de précipitations depuis le 1er janvier</label>
         <label class="check"><input type="checkbox" id="f-air"> Qualité de l'air : indice européen par mois (données depuis 2022)</label>
@@ -364,7 +365,45 @@ function analyse(D) {
   for (let i = 0; i < n; i++) { const s = M[i] >= 7 ? Y[i] : Y[i] - 1; const o = sea[s] = sea[s] || { v: 0, n: 0 }; o.n++; if (ok(D.sn[i])) o.v += D.sn[i]; }
   R.seas = Object.keys(sea).map(Number).filter(s => sea[s].n >= 360).sort((a, b) => a - b).map(s => ({ s, v: sea[s].v }));
   R.ind = defs.map(([label, f]) => ({ label, vals: periods.map(([a, b]) => { let c = 0; for (let i = 0; i < n; i++) if (Y[i] >= a && Y[i] <= b && f(i)) c++; return c / (b - a + 1); }) }));
+
+  // Horizon neige : jours humides de 1991–2020 (≥ 1 mm) et leur température moyenne
+  const hum = [];
+  for (let i = 0; i < n; i++) if (Y[i] >= 1991 && Y[i] <= 2020 && ok(D.pr[i]) && D.pr[i] >= 1) { const v = tm(i); if (v != null) hum.push(v); }
+  R.fut = horizonNeige(hum, NY);
   return R;
+}
+
+// ---------- Horizon neige (même méthode que meteo-future) ----------
+// Les 30 années 1991–2020 sont rejouées avec un réchauffement ajouté selon la TRACC.
+// Jour de chute de neige : ≥ 1 mm de précipitations et température moyenne (max+min)/2 ≤ 1 °C.
+const HN = { seuil: 1, base: 1.3, tracc: [[2005, 1.3], [2030, 2], [2050, 2.7], [2100, 4]], rare: 1, mParDegre: 150 };
+function horizonNeige(hum, nAns) {
+  const tab = [];
+  for (let k = 0; k <= 100; k++) { const dt = k * 0.05; let c = 0; for (const t of hum) if (t + dt <= HN.seuil) c++; tab.push(c / nAns); }
+  const warm = an => { for (let i = 1; i < HN.tracc.length; i++) { const [a0, w0] = HN.tracc[i - 1], [a1, w1] = HN.tracc[i]; if (an <= a1) return w0 + (w1 - w0) * (an - a0) / (a1 - a0); } return 4; };
+  const dt = an => Math.max(0, warm(an) - HN.base);
+  const jours = an => tab[Math.min(100, Math.round(dt(an) / 0.05))];
+  const j0 = tab[0]; let rare = null, moitie = null;
+  for (let an = new Date().getFullYear(); an <= 2100; an++) { const d = jours(an); if (moitie == null && d <= j0 / 2) moitie = an; if (rare == null && d < HN.rare) rare = an; }
+  return { j0, jours, dt, rare, moitie, anCourant: new Date().getFullYear() };
+}
+function futBlock(R, alt) {
+  const F = R.fut; if (!F) return '';
+  const j = v => fr(v, v >= 10 ? 0 : 1);
+  const a0 = fr(alt, 0);
+  const txt = F.j0 < HN.rare ? `À ${a0} m, les chutes de neige sont déjà rares dans le climat 1991–2020 (${j(F.j0)} jour par an en moyenne).`
+    : F.rare === F.anCourant ? `À ${a0} m, la neige est <b>déjà devenue rare</b> avec le réchauffement actuel : moins de ${HN.rare} jour de chute par an, contre ${j(F.j0)} sur 1991–2020.`
+    : F.rare ? `À ${a0} m, la neige devient rare (moins de ${HN.rare} jour de chute par an) <b>vers ${F.rare}</b>${F.moitie && F.moitie < F.rare ? ` ; le nombre de jours de neige est divisé par deux vers ${F.moitie}` : ''}.`
+    : `À ${a0} m, la neige reste présente en 2100, avec environ <b>${j(F.jours(2100))} jours</b> de chute par an contre ${j(F.j0)} sur 1991–2020${F.moitie ? ` (divisé par deux vers ${F.moitie})` : ''}.`;
+  const tuile = (lab, an) => {
+    const d = an ? F.jours(an) : F.j0, w = an ? F.dt(an) : 0, pc = an && F.j0 > 0 ? Math.round((d / F.j0 - 1) * 100) : null;
+    const eq = Math.round((alt - w * HN.mParDegre) / 10) * 10;
+    return `<div class="kpi"><b>${j(d)} j</b><span>${lab}${an ? ` · ${pc != null ? (pc > 0 ? '+' : '') + pc + ' %' : '—'} · ≈ climat actuel à ${fr(eq, 0)} m` : ' · jours de chute de neige par an'}</span></div>`;
+  };
+  return `<div class="sh-sec"><h3>Horizon neige · trajectoire officielle de réchauffement (TRACC)</h3>
+    <div class="kpis">${tuile('1991–2020', null)}${tuile('2030', 2030)}${tuile('2050', 2050)}${tuile('2100', 2100)}</div>
+    <div class="ski-cap">${txt} Méthode : les années 1991–2020 sont rejouées avec +0,7 °C (2030), +1,4 °C (2050) et +2,7 °C (2100), soit les niveaux TRACC (+2 / +2,7 / +4 °C par rapport au préindustriel) moins le réchauffement déjà présent.
+    Jour de chute de neige : ≥ 1 mm de précipitations et température moyenne ≤ 1 °C. Neige qui tombe, pas enneigement au sol ; les Alpes se réchauffent plus vite que la moyenne nationale.</div></div>`;
 }
 
 // ---------- Graphiques SVG ----------
@@ -500,6 +539,7 @@ function render(p, R, alt, o) {
       <table class="ind"><tr><th>Jours par an en moyenne</th>${R.periods.map(([a, b]) => `<th>${a}–${b}</th>`).join('')}</tr>
         ${R.ind.map(r => `<tr><td>${r.label}</td>${r.vals.map(v => `<td>${fr(v, v < 10 ? 1 : 0)}</td>`).join('')}</tr>`).join('')}</table></div>` : ''}
     ${o.ski ? skiBlock(R, o.color) : ''}
+    ${o.futur ? futBlock(R, alt) : ''}
     ${o.air ? airBlock(o.airData) : ''}
     <div class="sh-sec"><h3>Les extrêmes depuis ${R.years[0]}</h3>
       <div class="ext">
@@ -510,7 +550,7 @@ function render(p, R, alt, o) {
       </div></div>
     <div class="sh-sec"><h3>Repères locaux</h3><div class="local"><ul>${L.map(x => `<li>${x}</li>`).join('')}</ul></div></div>
     ${tourBlock}
-    <div class="sh-foot"><div>Sources : réanalyse ERA5 (Copernicus / ECMWF) via Open-Meteo, ${yrs} ; normales 1991–2020${o.air ? ' ; qualité de l\'air : CAMS (Copernicus) via Open-Meteo' : ''}${o.litsNote ? ' ; lits touristiques : ' + o.litsNote : ''}${o.stn ? ' ; ' + o.stnNote : ''}. Valeurs modélisées au point ${fr(p.lat, 3)}° N, ${fr(p.lon, 3)}° E à ${fr(alt, 0)} m : elles peuvent différer des mesures d'une station. Fiche établie le ${new Date().toLocaleDateString('fr-FR')} à ${new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}.</div>
+    <div class="sh-foot"><div>Sources : réanalyse ERA5 (Copernicus / ECMWF) via Open-Meteo, ${yrs} ; normales 1991–2020${o.futur ? ' ; horizon neige : TRACC (ministère de la Transition écologique)' : ''}${o.air ? ' ; qualité de l\'air : CAMS (Copernicus) via Open-Meteo' : ''}${o.litsNote ? ' ; lits touristiques : ' + o.litsNote : ''}${o.stn ? ' ; ' + o.stnNote : ''}. Valeurs modélisées au point ${fr(p.lat, 3)}° N, ${fr(p.lon, 3)}° E à ${fr(alt, 0)} m : elles peuvent différer des mesures d'une station. Fiche établie le ${new Date().toLocaleDateString('fr-FR')} à ${new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}.</div>
       <div class="r">${o.mention ? `<div class="mention">${esc(o.mention)}</div>` : ''}Document informatif : ne remplace pas la vigilance Météo-France.<br>© ${new Date().getFullYear()} fef73</div></div></div>`; };
   const wrap = $('wrap'); $('empty') && $('empty').remove(); if (!sheet.parentNode) wrap.appendChild(sheet);
   // mise en page : si la fiche doit être réduite, on redessine les graphiques à la largeur voulue
@@ -588,7 +628,7 @@ $('f-size').addEventListener('change', () => {
   const a3 = $('f-size').value === 'A3';
   $('page-size').textContent = `@page { size: ${a3 ? 'A3' : 'A4'} portrait; margin: 0; }`;
 });
-['f-color', 'f-tour', 'f-ski', 'f-air', 'f-ytd', 'f-hist'].forEach(id => $(id).addEventListener('change', () => { if (current) $('go').click(); }));
+['f-color', 'f-tour', 'f-ski', 'f-futur', 'f-air', 'f-ytd', 'f-hist'].forEach(id => $(id).addEventListener('change', () => { if (current) $('go').click(); }));
 
 const cache = {}, airCache = {};
 $('go').addEventListener('click', async () => {
@@ -609,7 +649,7 @@ $('go').addEventListener('click', async () => {
     const alt = elev != null ? elev : (D.elevation != null ? D.elevation : (chosen.elevation || 0));
     current = { chosen, R, alt };
     render({ name: chosen.name, admin1: chosen.admin1, admin2: chosen.admin2, population: chosen.population, lat: chosen.latitude, lon: chosen.longitude }, R, alt,
-      { color: $('f-color').value, stn: $('f-stn').checked && stnRec && stnRec.stations.length ? stnRec.stations[+$('f-stn-pick').value || 0] : null, stnNote: stnMeta ? stnNoteOf({ meta: stnMeta }) : '', lits: parseLits(), litsNote: litsAuto && parseLits() === litsAuto.lits ? litsAuto.note : '', mention: $('f-mention').value.trim(), tour: $('f-tour').checked, ski: $('f-ski').checked, air: $('f-air').checked, ytd: $('f-ytd').checked, hist: $('f-hist').checked, airData });
+      { color: $('f-color').value, stn: $('f-stn').checked && stnRec && stnRec.stations.length ? stnRec.stations[+$('f-stn-pick').value || 0] : null, stnNote: stnMeta ? stnNoteOf({ meta: stnMeta }) : '', lits: parseLits(), litsNote: litsAuto && parseLits() === litsAuto.lits ? litsAuto.note : '', mention: $('f-mention').value.trim(), tour: $('f-tour').checked, ski: $('f-ski').checked, futur: $('f-futur').checked, air: $('f-air').checked, ytd: $('f-ytd').checked, hist: $('f-hist').checked, airData });
     $('print').disabled = false; msg('Fiche prête.');
   } catch (e) { delete cache[`${chosen.latitude},${chosen.longitude},${elev}`]; msg('Impossible de récupérer les données. Réessayez dans un instant.', true); }
   $('go').disabled = false;
@@ -645,7 +685,9 @@ $('print').addEventListener('click', () => { const s = $('sheet'); if (s) s.styl
 
 // ?insee=73116 : présélectionne la commune par son code INSEE et génère la fiche
 (async () => {
-  const code = (new URLSearchParams(location.search).get('insee') || '').trim().toUpperCase();
+  const qs = new URLSearchParams(location.search);
+  if (qs.get('futur') === '1') $('f-futur').checked = true;
+  const code = (qs.get('insee') || '').trim().toUpperCase();
   if (!/^(\d{5}|2[AB]\d{3})$/.test(code)) return;
   try {
     const g = await getJSON(`https://geo.api.gouv.fr/communes/${code}?fields=nom,centre,population,departement,region&format=json&geometry=centre`);
