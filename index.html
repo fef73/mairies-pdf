@@ -215,6 +215,7 @@ $('lock').addEventListener('submit', e => {
 const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
 const MOIS = ['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
 const fr = (v, d = 1) => (Math.abs(v) < Math.pow(10, -d) / 2 ? 0 : v).toLocaleString('fr-FR', { minimumFractionDigits: d, maximumFractionDigits: d });
+const fT = v => { const r = Math.round(v); return (r < 0 ? '−' : '') + Math.abs(r); };   // température arrondie, signe moins seulement
 const sgn = (v, d = 1) => (v > 0 ? '+' : v < 0 ? '−' : '') + fr(Math.abs(v), d);
 const dateFr = iso => new Date(+iso.slice(0, 4), +iso.slice(5, 7) - 1, +iso.slice(8, 10)).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
 const msg = (t, err) => { $('msg').textContent = t; $('msg').className = 'msg' + (err ? ' err' : ''); };
@@ -521,6 +522,10 @@ function render(p, R, alt, o) {
     ${o.stn ? stnBlock(o.stn, p.name) : ''}
     <div class="sh-sec"><h3>Le climat en un coup d'œil <span style="letter-spacing:0;text-transform:none;color:#5d6b79;font-family:'Space Grotesk',sans-serif;font-size:10.5px;white-space:nowrap">· normales 1991–2020 (c'est la moyenne de chaque mois sur les 30 années de 1991 à 2020)</span></h3>
       ${climogram(R, o.color, o.ski)}
+      <div class="ski-cap"><span class="air-leg"><i style="background:#9ec3e6"></i>Barres : précipitations moyennes du mois, pluie et neige fondue (mm, échelle de droite)</span>
+        <span class="air-leg"><i style="background:#d4452d;height:3px"></i>Courbe rouge : température maximale moyenne, l'après-midi</span>
+        <span class="air-leg"><i style="background:#2b6cb0;height:3px"></i>Courbe bleue : température minimale moyenne, la nuit (°C, échelle de gauche)</span><br>
+        Lecture : en ${MOIS[0]}, il fait en moyenne ${fT(R.mon[0].tx)} °C l'après-midi et ${fT(R.mon[0].tn)} °C la nuit, et il tombe ${fr(R.mon[0].pr, 0)} mm d'eau${R.mon[0].sn >= 1 ? `, dont l'équivalent de ${fr(R.mon[0].sn, 0)} cm de neige` : ''}.</div>
       <div class="kpis">
         <div class="kpi"><b>${fr(R.annT)} °C</b><span>température moyenne</span></div>
         <div class="kpi"><b>${fr(R.annPr, 0)} mm</b><span>de pluie et neige fondue par an</span></div>
