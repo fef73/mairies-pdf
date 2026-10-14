@@ -30,6 +30,8 @@ Page : https://fef73.github.io/mairies-pdf/ — proposition commerciale : [mairi
 | Fichier | Rôle |
 |---|---|
 | `index.html` | Le générateur complet (HTML, CSS et JavaScript) |
+| `meteo-future.html` | Prévisions 16 jours d'une commune, normales, tendance saisonnière, horizon neige |
+| `meteo-trajet.html` | Météo jour par jour le long d'un trajet : étapes (commune, date d'arrivée, altitude), graphe T° mini/maxi, pluie/neige, PDF A4 |
 | `logo-fef73.jpg` | Avatar de la signature de bas de page |
 | `LICENSE` | Droits d'auteur (tous droits réservés) |
 | `README.md` | Ce fichier |

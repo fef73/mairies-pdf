@@ -1,0 +1,359 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Météo trajet</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600&family=Space+Grotesk:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0b1426;--panel:#121f38;--panel2:#18294a;--line:#253a63;
+  --txt:#e6edf8;--mute:#93a4c3;--acc:#5ec8ff;
+  --chaud:#ff7a59;--froid:#5ea8ff;--pluie:#4fd1c5;--neige:#cfe3ff;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--txt);font:15px/1.5 "Space Grotesk",system-ui,sans-serif}
+.wrap{max-width:1100px;margin:0 auto;padding:24px 16px 60px}
+h1{font:600 2rem/1.15 Fraunces,serif;margin:0 0 4px}
+.sub{color:var(--mute);margin:0 0 20px}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:16px}
+.etape{display:grid;grid-template-columns:28px 1fr 170px 120px 34px;gap:8px;align-items:center;margin-bottom:8px}
+.num{width:26px;height:26px;border-radius:50%;background:var(--panel2);border:1px solid var(--line);display:grid;place-items:center;font:500 13px "IBM Plex Mono",monospace;color:var(--mute)}
+.champ{position:relative}
+input{width:100%;background:var(--panel2);border:1px solid var(--line);color:var(--txt);border-radius:10px;padding:10px 12px;font:inherit;color-scheme:dark}
+input:focus{outline:2px solid var(--acc);border-color:transparent}
+input.ok{border-color:var(--acc)}
+input.ko{border-color:#ff9b9b}
+.sugg{position:absolute;top:100%;left:0;right:0;margin-top:2px;background:var(--panel2);border:1px solid var(--line);border-radius:10px;z-index:5;overflow:hidden;display:none}
+.sugg div{padding:9px 12px;cursor:pointer;border-bottom:1px solid var(--line)}
+.sugg div:last-child{border:0}
+.sugg div:hover,.sugg div.on{background:var(--line)}
+.sugg small{color:var(--mute)}
+button{background:var(--acc);color:#04203a;border:0;border-radius:10px;padding:10px 14px;font:600 14px "Space Grotesk",sans-serif;cursor:pointer}
+button.sec{background:var(--panel2);color:var(--txt);border:1px solid var(--line)}
+button.suppr{background:none;color:var(--mute);font-size:20px;padding:4px}
+button:disabled{opacity:.35;cursor:not-allowed}
+.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.actions .go{flex:1 1 160px}
+.note{color:var(--mute);font-size:13px}
+.err{color:#ff9b9b}
+.legend{display:flex;gap:16px;flex-wrap:wrap;font-size:13px;color:var(--mute);margin-bottom:6px}
+.legend i{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:5px;vertical-align:-1px}
+svg{width:100%;height:auto;display:block}
+.hide{display:none}
+.titre{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap}
+svg a text{cursor:pointer}
+svg a:hover text{text-decoration:underline}
+/* ---------- PDF / impression : A4 paysage, fond blanc ---------- */
+.printonly{display:none}
+@page{size:A4 landscape;margin:10mm}
+@media print{
+  :root{--bg:#fff;--panel:#fff;--panel2:#eef2f7;--line:#cfd8e3;--txt:#15212e;--mute:#566475;--acc:#1f5f99;
+        --chaud:#d4452d;--froid:#2b6cb0;--pluie:#2a9d8f;--neige:#7fa7dc}
+  html,body{background:#fff;color:var(--txt)}
+  *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .wrap{max-width:none;padding:0}
+  .noprint,#msg,.sub{display:none!important}
+  .printonly{display:block}
+  h1{font-size:20px}
+  .printhead{display:flex;justify-content:space-between;border-bottom:2px solid var(--acc);padding-bottom:4px;margin-bottom:8px;color:var(--mute);font-size:10px}
+  .panel{border:0;padding:0;break-inside:avoid}
+  .note{font-size:9px}
+}
+@media (max-width:560px){
+  .etape{grid-template-columns:26px 1fr 100px 34px;margin-bottom:14px}
+  .etape .num{grid-row:1;grid-column:1}
+  .etape .cv{grid-row:1;grid-column:2/4}
+  .etape .suppr{grid-row:1;grid-column:4}
+  .etape .cd{grid-row:2;grid-column:2}
+  .etape .ca{grid-row:2;grid-column:3}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="printonly printhead"><span id="printTrajet"></span><span id="printDate"></span></div>
+  <div class="titre">
+    <h1>Météo trajet</h1>
+    <button class="sec noprint hide" id="print" title="Enregistrer en PDF ou imprimer (A4 paysage)">📄 PDF / Imprimer</button>
+  </div>
+  <p class="sub">Le temps prévu à votre arrivée à chaque étape (16 jours maximum).
+    Cliquez sur une commune du graphe pour ses prévisions détaillées dans <a href="meteo-future.html" style="color:var(--acc)">Météo à venir</a>.</p>
+
+  <div class="panel noprint">
+    <div id="etapes"></div>
+    <div class="actions">
+      <button class="sec" id="ajout">＋ Ajouter une étape</button>
+      <button class="go" id="go" disabled>Afficher</button>
+    </div>
+    <p id="msg" class="note" style="margin:10px 0 0"></p>
+  </div>
+
+  <div id="res" class="panel hide">
+    <div class="legend">
+      <span><i style="background:var(--chaud)"></i>T° maxi</span>
+      <span><i style="background:var(--froid)"></i>T° mini</span>
+      <span><i style="background:var(--pluie)"></i>Pluie (mm)</span>
+      <span><i style="background:var(--neige)"></i>Neige (cm)</span>
+    </div>
+    <div id="graphe"></div>
+  </div>
+  <p class="note hide" id="src">Au-delà de 7 jours : simple tendance (cadre grisé). Altitude : celle du point mairie (auto) ou celle saisie ; les températures sont corrigées en conséquence. Source : Open-Meteo (Météo-France, ECMWF…). Communes : geo.api.gouv.fr.</p>
+</div>
+
+<script>
+const $=id=>document.getElementById(id);
+const MAXE=10, NJ=16;
+const JOURS=["dim.","lun.","mar.","mer.","jeu.","ven.","sam."];
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const fmt=(v,d=0)=>v==null||isNaN(v)?"–":v.toFixed(d).replace(".",",");
+const isoJ=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+const frJ=s=>s.split("-").reverse().join("/");
+const addJ=(s,n)=>{const d=new Date(s+"T12:00");d.setDate(d.getDate()+n);return isoJ(d)};
+const MIN=isoJ(new Date()), MAX=(()=>{const d=new Date();d.setDate(d.getDate()+NJ-1);return isoJ(d)})();
+const TEND=(()=>{const d=new Date();d.setDate(d.getDate()+7);return isoJ(d)})();
+const WMO={
+  0:["☀️","Ciel clair"],1:["🌤️","Peu nuageux"],2:["⛅","Partiellement nuageux"],3:["☁️","Couvert"],
+  45:["🌫️","Brouillard"],48:["🌫️","Brouillard givrant"],
+  51:["🌦️","Bruine faible"],53:["🌦️","Bruine"],55:["🌦️","Bruine forte"],
+  56:["🌧️","Bruine verglaçante"],57:["🌧️","Bruine verglaçante forte"],
+  61:["🌧️","Pluie faible"],63:["🌧️","Pluie"],65:["🌧️","Pluie forte"],
+  66:["🌧️","Pluie verglaçante"],67:["🌧️","Pluie verglaçante forte"],
+  71:["🌨️","Neige faible"],73:["🌨️","Neige"],75:["❄️","Neige forte"],77:["🌨️","Grains de neige"],
+  80:["🌦️","Averses faibles"],81:["🌦️","Averses"],82:["⛈️","Averses violentes"],
+  85:["🌨️","Averses de neige"],86:["❄️","Fortes averses de neige"],
+  95:["⛈️","Orage"],96:["⛈️","Orage avec grêle"],99:["⛈️","Orage, forte grêle"]
+};
+
+/* ---------- Étapes : commune + date d'arrivée ---------- */
+const etapes=[];   // {el, c:{nom,insee,dep,lat,lon}|null, date}
+
+function ajouterEtape(date,alt){
+  if(etapes.length>=MAXE)return;
+  const el=document.createElement("div");
+  el.className="etape";
+  el.innerHTML=`<div class="num"></div>
+    <div class="champ cv"><input class="ville" placeholder="Commune (nom, code postal, INSEE)…" autocomplete="off"><div class="sugg"></div></div>
+    <div class="champ cd"><input class="date" type="date" min="${MIN}" max="${MAX}"></div>
+    <div class="champ ca"><input class="alt" type="number" inputmode="numeric" min="-50" max="4810" step="1"
+      placeholder="Alt. auto" title="Altitude du point en mètres — laisser vide pour l'altitude automatique"></div>
+    <button class="suppr" title="Supprimer l'étape">×</button>`;
+  if(alt) el.querySelector(".alt").value=alt;
+  el.querySelector(".alt").addEventListener("input",verifier);
+  $("etapes").appendChild(el);
+  const e={el,c:null};
+  etapes.push(e);
+  const d=el.querySelector(".date");
+  const prec=etapes[etapes.length-2];
+  d.value=date||(prec?.el.querySelector(".date").value)||MIN;
+  d.addEventListener("change",verifier);
+  el.querySelector(".suppr").onclick=()=>{
+    if(etapes.length===1)return;
+    etapes.splice(etapes.indexOf(e),1); el.remove(); numeroter(); verifier();
+  };
+  champVille(e);
+  numeroter(); verifier();
+  return e;
+}
+function numeroter(){
+  etapes.forEach((e,i)=>e.el.querySelector(".num").textContent=i+1);
+  $("ajout").disabled=etapes.length>=MAXE;
+}
+$("ajout").onclick=()=>{ajouterEtape();etapes.at(-1).el.querySelector(".ville").focus()};
+
+function champVille(e){
+  const inp=e.el.querySelector(".ville"), box=e.el.querySelector(".sugg");
+  let timer, items=[], on=-1;
+  const fermer=()=>{box.style.display="none";on=-1};
+  e.choisir=c=>{
+    const [lon,lat]=(c.mairie||c.centre).coordinates;
+    e.c={nom:c.nom,insee:c.code,dep:c.departement?.nom||"",lat,lon};
+    inp.value=c.nom; inp.classList.add("ok"); inp.classList.remove("ko"); fermer(); verifier();
+  };
+  inp.addEventListener("input",()=>{
+    e.c=null; inp.classList.remove("ok"); verifier(); clearTimeout(timer);
+    const v=inp.value.trim();
+    if(v.length<2)return fermer();
+    timer=setTimeout(async()=>{
+      items=await chercher(v);
+      box.innerHTML=items.map(c=>`<div>${esc(c.nom)} <small>${esc(c.departement?.nom||"")} · INSEE ${c.code}</small></div>`).join("")
+        ||`<div><small>Aucune commune trouvée</small></div>`;
+      [...box.children].forEach((d,k)=>d.onmousedown=()=>items[k]&&e.choisir(items[k]));
+      box.style.display="block"; on=-1;
+    },250);
+  });
+  inp.addEventListener("keydown",ev=>{
+    const d=box.children; if(box.style.display!=="block"||!items.length)return;
+    if(ev.key==="ArrowDown"){on=Math.min(on+1,d.length-1);ev.preventDefault()}
+    else if(ev.key==="ArrowUp"){on=Math.max(on-1,0);ev.preventDefault()}
+    else if(ev.key==="Enter"){ev.preventDefault();e.choisir(items[on<0?0:on]);return}
+    else if(ev.key==="Escape")return fermer();
+    else return;
+    [...d].forEach((x,k)=>x.classList.toggle("on",k===on));
+  });
+  inp.addEventListener("blur",()=>setTimeout(()=>{fermer();inp.classList.toggle("ko",!e.c&&!!inp.value.trim())},150));
+}
+
+async function chercher(v){
+  const f="fields=nom,code,codesPostaux,centre,mairie,departement&limit=8";
+  try{
+    let r;
+    if(/^\d{5}$/.test(v)){   // code postal ou code INSEE
+      const [a,b]=await Promise.all([
+        fetch(`https://geo.api.gouv.fr/communes?code=${v}&${f}`).then(x=>x.json()),
+        fetch(`https://geo.api.gouv.fr/communes?codePostal=${v}&${f}`).then(x=>x.json())]);
+      r=[...a,...b.filter(c=>!a.some(x=>x.code===c.code))];
+    } else if(/^2[AB]\d{3}$/i.test(v)){
+      r=await (await fetch(`https://geo.api.gouv.fr/communes?code=${v.toUpperCase()}&${f}`)).json();
+    } else {
+      r=await (await fetch(`https://geo.api.gouv.fr/communes?nom=${encodeURIComponent(v)}&boost=population&${f}`)).json();
+    }
+    return r.filter(c=>c.centre);
+  }catch{ $("msg").innerHTML=`<span class="err">Recherche de commune impossible (réseau).</span>`; return [] }
+}
+
+/* ---------- Altitude saisie : null = automatique, NaN = invalide ---------- */
+function altEtape(e){
+  const v=e.el.querySelector(".alt").value.trim();
+  if(v==="")return null;
+  const n=Math.round(+v);
+  return isFinite(n)&&n>=-50&&n<=4810?n:NaN;
+}
+
+/* ---------- Validation ---------- */
+function verifier(){
+  let m="", prec="";
+  etapes.forEach((e,i)=>{
+    const d=e.el.querySelector(".date"), v=d.value;
+    let ko=false;
+    if(m)return;
+    if(!e.c) m=`Étape ${i+1} : choisissez une commune dans la liste.`;
+    else if(!v) {m=`Étape ${i+1} : indiquez la date d'arrivée.`;ko=true}
+    else if(v<MIN||v>MAX) {m=`Étape ${i+1} : prévisions disponibles du ${frJ(MIN)} au ${frJ(MAX)}.`;ko=true}
+    else if(prec&&v<prec) {m=`Étape ${i+1} : la date ne peut pas précéder celle de l'étape ${i}.`;ko=true}
+    d.classList.toggle("ko",ko);
+    const a=e.el.querySelector(".alt"), av=altEtape(e);
+    a.classList.toggle("ko",Number.isNaN(av));
+    if(!m&&Number.isNaN(av)) m=`Étape ${i+1} : altitude invalide (nombre entre −50 et 4 810 m, ou vide).`;
+    prec=v;
+  });
+  $("msg").textContent=m;
+  $("go").disabled=!!m;
+  return !m;
+}
+
+/* ---------- Prévisions ---------- */
+$("go").onclick=async()=>{
+  if(!verifier())return;
+  const liste=etapes.map(e=>({...e.c,date:e.el.querySelector(".date").value,alt:altEtape(e)}));
+  history.replaceState(null,"","?e="+liste.map(x=>`${x.insee}_${x.date}${x.alt!=null?"_"+x.alt:""}`).join(","));
+  $("go").disabled=true; $("msg").textContent="Chargement des prévisions…";
+  try{
+    // chaque étape couvre son jour d'arrivée jusqu'à la veille de l'étape suivante (séjour)
+    const parEtape=await Promise.all(liste.map(async(x,i)=>{
+      const suiv=liste[i+1]?.date;
+      const fin=suiv&&suiv>x.date?addJ(suiv,-1):x.date;
+      const r=await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${x.lat}&longitude=${x.lon}`+
+        `&daily=weather_code,temperature_2m_max,temperature_2m_min,rain_sum,showers_sum,snowfall_sum`+
+        `&timezone=Europe%2FParis&start_date=${x.date}&end_date=${fin}`+
+        (x.alt!=null?`&elevation=${x.alt}`:""));
+      if(!r.ok) throw new Error(r.status===429?"quota Open-Meteo atteint":"HTTP "+r.status);
+      const j=await r.json(), D=j.daily, elev=Math.round(j.elevation);
+      return D.time.map((t,k)=>({...x,date:t,etape:i,arrivee:k===0,elev,
+        altSaisie:x.alt!=null,code:D.weather_code[k],
+        tx:D.temperature_2m_max[k],tn:D.temperature_2m_min[k],
+        pluie:(D.rain_sum[k]||0)+(D.showers_sum[k]||0),neige:D.snowfall_sum[k]||0}));
+    }));
+    dessiner(parEtape.flat());
+    $("msg").textContent="";
+  }catch(e){ $("msg").innerHTML=`<span class="err">Impossible de charger les prévisions (${esc(e.message)}).</span>` }
+  $("go").disabled=false;
+};
+
+/* ---------- Graphique : une colonne par étape ---------- */
+function dessiner(E){
+  $("res").classList.remove("hide"); $("src").classList.remove("hide"); $("print").classList.remove("hide");
+  const n=E.length, W=1000, H=420, L=44, R=44, T=50, B=78, w=W-L-R, h=H-T-B, step=w/n;
+  const x=i=>L+step*(i+.5);
+  const temps=E.flatMap(e=>[e.tx,e.tn]).filter(v=>v!=null);
+  let lo=Math.floor(Math.min(...temps)/5)*5, hi=Math.ceil(Math.max(...temps)/5)*5;
+  if(hi-lo<10)hi=lo+10;
+  const yT=v=>T+h*(1-(v-lo)/(hi-lo));
+  const pTop=Math.ceil(Math.max(10,...E.map(e=>e.pluie+e.neige))/5)*5;
+  const yP=v=>T+h*(1-v/pTop);
+  const maxc=Math.max(5,Math.floor(step/(n>10?6.5:7.5)));
+  const court=s=>s.length>maxc?s.slice(0,maxc-1)+"…":s;
+
+  let s=`<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Météo à chaque étape">`;
+  // colonnes : fond alterné par étape, grisé si tendance (> 7 j), trait vertical à chaque arrivée
+  E.forEach((e,i)=>{
+    const tend=e.date>=TEND;
+    if(tend||e.etape%2) s+=`<rect x="${L+step*i}" y="${T}" width="${step}" height="${h}" fill="var(--panel2)" opacity="${tend?1:.45}"/>`;
+    if(tend&&(i===0||E[i-1].date<TEND)) s+=`<text x="${L+step*i+4}" y="12" fill="var(--mute)" font-size="11">tendance →</text>`;
+    // icône du temps au-dessus de la colonne
+    const [ic,lb]=WMO[e.code]||["❔","—"];
+    s+=`<text x="${x(i)}" y="${T-8}" font-size="${n>12?18:24}" text-anchor="middle">${ic}<title>${lb}</title></text>`;
+    if(e.arrivee&&i>0) s+=`<line x1="${L+step*i}" x2="${L+step*i}" y1="${T}" y2="${H-B+60}" stroke="var(--acc)" stroke-width="1.5" opacity=".6"/>`;
+  });
+  // grille températures + axe pluie
+  for(let v=lo;v<=hi;v+=5) s+=`<line x1="${L}" x2="${W-R}" y1="${yT(v)}" y2="${yT(v)}" stroke="var(--line)" ${v===0?'stroke-width="1.5"':'stroke-dasharray="3 4"'}/>
+    <text x="${L-6}" y="${yT(v)+4}" fill="var(--mute)" font-size="12" text-anchor="end">${v}°</text>`;
+  for(let k=0;k<=4;k++){const v=pTop*k/4;
+    s+=`<text x="${W-R+6}" y="${yP(v)+4}" fill="var(--pluie)" font-size="11">${Math.round(v)}</text>`;}
+  // barres pluie + neige empilées
+  const bw=Math.min(step*.45,60);
+  E.forEach((e,i)=>{
+    const bx=x(i)-bw/2;
+    if(e.pluie>0) s+=`<rect x="${bx}" y="${yP(e.pluie)}" width="${bw}" height="${yP(0)-yP(e.pluie)}" fill="var(--pluie)" opacity=".6" rx="2"><title>Pluie ${fmt(e.pluie,1)} mm</title></rect>`;
+    if(e.neige>0) s+=`<rect x="${bx}" y="${yP(e.pluie+e.neige)}" width="${bw}" height="${yP(0)-yP(e.neige)}" fill="var(--neige)" opacity=".85" rx="2"><title>Neige ${fmt(e.neige,1)} cm</title></rect>`;
+    const tot=e.pluie+e.neige;
+    if(tot>0) s+=`<text x="${x(i)}" y="${yP(tot)-5}" fill="var(--pluie)" font-size="11" text-anchor="middle">${fmt(e.pluie,1)}${e.neige>0?` + ${fmt(e.neige,0)}❄`:""}</text>`;
+  });
+  // points maxi / mini + valeurs
+  E.forEach((e,i)=>{
+    if(e.tx!=null) s+=`<circle cx="${x(i)}" cy="${yT(e.tx)}" r="6" fill="var(--chaud)"><title>Maxi ${fmt(e.tx,1)} °C</title></circle>
+      <text x="${x(i)+10}" y="${yT(e.tx)+4}" fill="var(--chaud)" font-size="12" font-family="IBM Plex Mono,monospace">${fmt(e.tx)}°</text>`;
+    if(e.tn!=null) s+=`<circle cx="${x(i)}" cy="${yT(e.tn)}" r="6" fill="var(--froid)"><title>Mini ${fmt(e.tn,1)} °C</title></circle>
+      <text x="${x(i)+10}" y="${yT(e.tn)+4}" fill="var(--froid)" font-size="12" font-family="IBM Plex Mono,monospace">${fmt(e.tn)}°</text>`;
+  });
+  // abscisse : date puis commune (en couleur le jour d'arrivée, en gris les jours de séjour)
+  const fs=n>10?11:13;
+  E.forEach((e,i)=>{
+    const d=new Date(e.date+"T12:00");
+    s+=`<text x="${x(i)}" y="${H-B+20}" fill="var(--txt)" font-size="${fs}" text-anchor="middle">${n>10?"":JOURS[d.getDay()]+" "}${d.getDate()}/${d.getMonth()+1}</text>
+        <a href="meteo-future.html?insee=${encodeURIComponent(e.insee)}${e.altSaisie?"&alt="+e.alt:""}" target="_blank"><text x="${x(i)}" y="${H-B+38}" fill="${e.arrivee?"var(--acc)":"var(--mute)"}" font-size="${fs}" font-weight="${e.arrivee?600:400}" text-anchor="middle">${esc(court(e.nom))}<title>${esc(e.nom)}${e.dep?" ("+esc(e.dep)+")":""} — prévisions détaillées</title></text></a>
+        <text x="${x(i)}" y="${H-B+54}" fill="var(--mute)" font-size="11" text-anchor="middle" font-family="IBM Plex Mono,monospace">${e.elev} m<title>Altitude ${e.altSaisie?"saisie":"automatique"} : ${e.elev} m</title></text>
+        ${e.arrivee?`<text x="${x(i)}" y="${H-B+70}" fill="var(--mute)" font-size="11" text-anchor="middle">étape ${e.etape+1}</text>`:""}`;
+  });
+  $("graphe").innerHTML=s+"</svg>";
+}
+
+/* ---------- PDF : nom de fichier = trajet + date, mise en page A4 paysage ---------- */
+$("print").onclick=()=>{
+  const d=new Date(), ti=document.title;
+  const noms=etapes.filter(e=>e.c).map(e=>e.c.nom);
+  $("printTrajet").textContent="METEO TRAJET · "+noms.join(" → ");
+  $("printDate").textContent=`établie le ${d.toLocaleDateString("fr-FR")} à ${d.toLocaleTimeString("fr-FR",{hour:"2-digit",minute:"2-digit"})} · fef73.github.io`;
+  document.title=`Meteo-trajet_${noms.slice(0,1).concat(noms.length>1?noms.slice(-1):[]).join("-").replace(/[^\p{L}\d-]+/gu,"-")}_${isoJ(d)}`;
+  window.print();
+  setTimeout(()=>document.title=ti,1000);
+};
+
+/* ---------- Lancement par URL : ?e=INSEE_AAAA-MM-JJ[_altitude],… ---------- */
+(async()=>{
+  const p=new URLSearchParams(location.search);
+  const liste=(p.get("e")||"").split(",").filter(Boolean).slice(0,MAXE).map(t=>t.split("_"));
+  if(!liste.length){ajouterEtape();ajouterEtape();return}
+  const E=liste.map(([,date,alt])=>ajouterEtape(date,alt));
+  await Promise.all(liste.map(async([code],i)=>{
+    try{
+      const c=await (await fetch(`https://geo.api.gouv.fr/communes/${encodeURIComponent(code)}?fields=nom,code,centre,mairie,departement`)).json();
+      if(c.centre) E[i].choisir(c);
+    }catch{}
+  }));
+  if(verifier()) $("go").click();
+})();
+</script>
+</body>
+</html>
