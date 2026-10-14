@@ -18,7 +18,7 @@ body{margin:0;background:var(--bg);color:var(--txt);font:15px/1.5 "Space Grotesk
 h1{font:600 2rem/1.15 Fraunces,serif;margin:0 0 4px}
 .sub{color:var(--mute);margin:0 0 20px}
 .panel{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:16px}
-.etape{display:grid;grid-template-columns:28px 1fr 170px 120px 34px;gap:8px;align-items:center;margin-bottom:8px}
+.etape{display:grid;grid-template-columns:28px 1fr 160px 110px 110px 34px;gap:8px;align-items:center;margin-bottom:8px}
 .num{width:26px;height:26px;border-radius:50%;background:var(--panel2);border:1px solid var(--line);display:grid;place-items:center;font:500 13px "IBM Plex Mono",monospace;color:var(--mute)}
 .champ{position:relative}
 input{width:100%;background:var(--panel2);border:1px solid var(--line);color:var(--txt);border-radius:10px;padding:10px 12px;font:inherit;color-scheme:dark}
@@ -41,6 +41,9 @@ button:disabled{opacity:.35;cursor:not-allowed}
 .legend{display:flex;gap:16px;flex-wrap:wrap;font-size:13px;color:var(--mute);margin-bottom:6px}
 .legend i{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:5px;vertical-align:-1px}
 svg{width:100%;height:auto;display:block}
+#graphe{overflow-x:auto}
+@media (max-width:700px){#graphe svg{min-width:720px}}
+@media print{#graphe svg{min-width:0}}
 .hide{display:none}
 .titre{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap}
 svg a text{cursor:pointer}
@@ -62,12 +65,13 @@ svg a:hover text{text-decoration:underline}
   .note{font-size:9px}
 }
 @media (max-width:560px){
-  .etape{grid-template-columns:26px 1fr 100px 34px;margin-bottom:14px}
+  .etape{grid-template-columns:26px 1fr 88px 84px 34px;margin-bottom:14px}
   .etape .num{grid-row:1;grid-column:1}
-  .etape .cv{grid-row:1;grid-column:2/4}
-  .etape .suppr{grid-row:1;grid-column:4}
+  .etape .cv{grid-row:1;grid-column:2/5}
+  .etape .suppr{grid-row:1;grid-column:5}
   .etape .cd{grid-row:2;grid-column:2}
-  .etape .ca{grid-row:2;grid-column:3}
+  .etape .ch{grid-row:2;grid-column:3}
+  .etape .ca{grid-row:2;grid-column:4}
 }
 </style>
 </head>
@@ -96,6 +100,7 @@ svg a:hover text{text-decoration:underline}
       <span><i style="background:var(--froid)"></i>T° mini</span>
       <span><i style="background:var(--pluie)"></i>Pluie (mm)</span>
       <span><i style="background:var(--neige)"></i>Neige (cm)</span>
+      <span><i style="background:var(--txt);transform:rotate(45deg) scale(.8)"></i>À l'heure d'arrivée</span>
     </div>
     <div id="graphe"></div>
   </div>
@@ -129,17 +134,19 @@ const WMO={
 /* ---------- Étapes : commune + date d'arrivée ---------- */
 const etapes=[];   // {el, c:{nom,insee,dep,lat,lon}|null, date}
 
-function ajouterEtape(date,alt){
+function ajouterEtape(date,alt,heure){
   if(etapes.length>=MAXE)return;
   const el=document.createElement("div");
   el.className="etape";
   el.innerHTML=`<div class="num"></div>
     <div class="champ cv"><input class="ville" placeholder="Commune (nom, code postal, INSEE)…" autocomplete="off"><div class="sugg"></div></div>
     <div class="champ cd"><input class="date" type="date" min="${MIN}" max="${MAX}"></div>
+    <div class="champ ch"><input class="heure" type="time" step="900" title="Heure d'arrivée (facultatif) : affiche le temps à cette heure-là"></div>
     <div class="champ ca"><input class="alt" type="number" inputmode="numeric" min="-50" max="4810" step="1"
       placeholder="Alt. auto" title="Altitude du point en mètres — laisser vide pour l'altitude automatique"></div>
     <button class="suppr" title="Supprimer l'étape">×</button>`;
   if(alt) el.querySelector(".alt").value=alt;
+  if(/^\d{2}:\d{2}$/.test(heure||"")) el.querySelector(".heure").value=heure;
   el.querySelector(".alt").addEventListener("input",verifier);
   $("etapes").appendChild(el);
   const e={el,c:null};
@@ -246,8 +253,10 @@ function verifier(){
 /* ---------- Prévisions ---------- */
 $("go").onclick=async()=>{
   if(!verifier())return;
-  const liste=etapes.map(e=>({...e.c,date:e.el.querySelector(".date").value,alt:altEtape(e)}));
-  history.replaceState(null,"","?e="+liste.map(x=>`${x.insee}_${x.date}${x.alt!=null?"_"+x.alt:""}`).join(","));
+  const liste=etapes.map(e=>({...e.c,date:e.el.querySelector(".date").value,alt:altEtape(e),heure:e.el.querySelector(".heure").value}));
+  // ?e=INSEE_date[_altitude[_HH:MM]] (altitude vide possible : INSEE_date__14:30)
+  history.replaceState(null,"","?e="+liste.map(x=>{
+    const t=[x.insee,x.date,x.alt??"",x.heure||""]; while(t.at(-1)==="")t.pop(); return t.join("_")}).join(","));
   $("go").disabled=true; $("msg").textContent="Chargement des prévisions…";
   try{
     // chaque étape couvre son jour d'arrivée jusqu'à la veille de l'étape suivante (séjour)
@@ -257,12 +266,21 @@ $("go").onclick=async()=>{
       const fin=i===liste.length-1?MAX:suiv&&suiv>x.date?addJ(suiv,-1):x.date;
       const r=await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${x.lat}&longitude=${x.lon}`+
         `&daily=weather_code,temperature_2m_max,temperature_2m_min,rain_sum,showers_sum,snowfall_sum`+
+        (x.heure?`&hourly=temperature_2m,precipitation,snowfall,weather_code`:"")+
         `&timezone=Europe%2FParis&start_date=${x.date}&end_date=${fin}`+
         (x.alt!=null?`&elevation=${x.alt}`:""));
       if(!r.ok) throw new Error(r.status===429?"quota Open-Meteo atteint":"HTTP "+r.status);
       const j=await r.json(), D=j.daily, elev=Math.round(j.elevation);
+      // temps à l'heure d'arrivée (heure arrondie)
+      let h=null;
+      if(x.heure&&j.hourly){
+        const [hh,mm]=x.heure.split(":").map(Number), hr=Math.min(23,hh+(mm>=30?1:0));
+        const k=j.hourly.time.indexOf(`${x.date}T${String(hr).padStart(2,"0")}:00`);
+        if(k>=0) h={heure:x.heure,t:j.hourly.temperature_2m[k],p:j.hourly.precipitation[k]||0,
+          s:j.hourly.snowfall[k]||0,code:j.hourly.weather_code[k]};
+      }
       return D.time.map((t,k)=>({...x,date:t,etape:i,arrivee:k===0,elev,
-        altSaisie:x.alt!=null,code:D.weather_code[k],
+        altSaisie:x.alt!=null,code:D.weather_code[k],h:k===0?h:null,
         tx:D.temperature_2m_max[k],tn:D.temperature_2m_min[k],
         pluie:(D.rain_sum[k]||0)+(D.showers_sum[k]||0),neige:D.snowfall_sum[k]||0}));
     }));
@@ -275,7 +293,7 @@ $("go").onclick=async()=>{
 /* ---------- Graphique : une colonne par étape ---------- */
 function dessiner(E){
   $("res").classList.remove("hide"); $("src").classList.remove("hide"); $("print").classList.remove("hide");
-  const n=E.length, W=1000, H=420, L=44, R=44, T=50, B=78, w=W-L-R, h=H-T-B, step=w/n;
+  const n=E.length, W=1000, H=436, L=44, R=44, T=50, B=94, w=W-L-R, h=H-T-B, step=w/n;
   const x=i=>L+step*(i+.5);
   const temps=E.flatMap(e=>[e.tx,e.tn]).filter(v=>v!=null);
   let lo=Math.floor(Math.min(...temps)/5)*5, hi=Math.ceil(Math.max(...temps)/5)*5;
@@ -311,6 +329,14 @@ function dessiner(E){
     const tot=e.pluie+e.neige;
     if(tot>0) s+=`<text x="${x(i)}" y="${yP(tot)-5}" fill="var(--pluie)" font-size="11" text-anchor="middle">${fmt(e.pluie,1)}${e.neige>0?` + ${fmt(e.neige,0)}❄`:""}</text>`;
   });
+  // losange blanc : température à l'heure d'arrivée, étiquette à gauche
+  E.forEach((e,i)=>{
+    if(!e.h||e.h.t==null)return;
+    const cx=x(i), cy=yT(e.h.t), [ic,lb]=WMO[e.h.code]||["",""];
+    const pr=e.h.s>0?` · ${fmt(e.h.s,1)} cm ❄`:e.h.p>0?` · ${fmt(e.h.p,1)} mm`:"";
+    s+=`<path d="M${cx},${cy-7} L${cx+7},${cy} L${cx},${cy+7} L${cx-7},${cy}Z" fill="var(--txt)" stroke="var(--bg)" stroke-width="1.5">
+        <title>Arrivée ${e.h.heure.replace(":","h")} : ${fmt(e.h.t,1)} °C, ${lb}${pr}</title></path>`;
+  });
   // points maxi / mini + valeurs
   E.forEach((e,i)=>{
     if(e.tx!=null) s+=`<circle cx="${x(i)}" cy="${yT(e.tx)}" r="6" fill="var(--chaud)"><title>Maxi ${fmt(e.tx,1)} °C</title></circle>
@@ -325,7 +351,8 @@ function dessiner(E){
     s+=`<text x="${x(i)}" y="${H-B+20}" fill="var(--txt)" font-size="${fs}" text-anchor="middle">${n>10?"":JOURS[d.getDay()]+" "}${d.getDate()}/${d.getMonth()+1}</text>
         <a href="meteo-future.html?insee=${encodeURIComponent(e.insee)}${e.altSaisie?"&alt="+e.alt:""}" target="_blank"><text x="${x(i)}" y="${H-B+38}" fill="${e.arrivee?"var(--acc)":"var(--mute)"}" font-size="${fs}" font-weight="${e.arrivee?600:400}" text-anchor="middle">${esc(court(e.nom))}<title>${esc(e.nom)}${e.dep?" ("+esc(e.dep)+")":""} — prévisions détaillées</title></text></a>
         <text x="${x(i)}" y="${H-B+54}" fill="var(--mute)" font-size="11" text-anchor="middle" font-family="IBM Plex Mono,monospace">${e.elev} m<title>Altitude ${e.altSaisie?"saisie":"automatique"} : ${e.elev} m</title></text>
-        ${e.arrivee?`<text x="${x(i)}" y="${H-B+70}" fill="var(--mute)" font-size="11" text-anchor="middle">étape ${e.etape+1}</text>`:""}`;
+        ${e.arrivee?`<text x="${x(i)}" y="${H-B+70}" fill="var(--mute)" font-size="11" text-anchor="middle">étape ${e.etape+1}</text>`:""}
+        ${e.h&&e.h.t!=null?`<text x="${x(i)}" y="${H-B+86}" fill="var(--txt)" font-size="11" text-anchor="middle" font-family="IBM Plex Mono,monospace">◆ ${e.h.heure.replace(":","h")} ${fmt(e.h.t)}°${e.h.p>0||e.h.s>0?" 💧":""}</text>`:""}`;
   });
   $("graphe").innerHTML=s+"</svg>";
 }
@@ -357,7 +384,7 @@ $("print").onclick=()=>{
     }
     return;
   }
-  const E=liste.map(([,date,alt])=>ajouterEtape(date,alt));
+  const E=liste.map(([,date,alt,heure])=>ajouterEtape(date,alt,heure));
   await Promise.all(liste.map(async([code],i)=>{
     try{
       const c=await (await fetch(`https://geo.api.gouv.fr/communes/${encodeURIComponent(code)}?fields=nom,code,centre,mairie,departement`)).json();
