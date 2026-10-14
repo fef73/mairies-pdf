@@ -345,7 +345,18 @@ $("print").onclick=()=>{
 (async()=>{
   const p=new URLSearchParams(location.search);
   const liste=(p.get("e")||"").split(",").filter(Boolean).slice(0,MAXE).map(t=>t.split("_"));
-  if(!liste.length){ajouterEtape();ajouterEtape();return}
+  if(!liste.length){
+    ajouterEtape();ajouterEtape();
+    // lien depuis le menu avec « Ma position » (?lat=…&lon=…) : étape 1 = commune actuelle, aujourd'hui
+    const lat=parseFloat(p.get("lat")), lon=parseFloat(p.get("lon"));
+    if(!isNaN(lat)&&!isNaN(lon)){
+      try{
+        const r=await (await fetch(`https://geo.api.gouv.fr/communes?lat=${lat}&lon=${lon}&fields=nom,code,centre,mairie,departement`)).json();
+        if(r[0]?.centre){etapes[0].choisir(r[0]);etapes[1].el.querySelector(".ville").focus()}
+      }catch{}
+    }
+    return;
+  }
   const E=liste.map(([,date,alt])=>ajouterEtape(date,alt));
   await Promise.all(liste.map(async([code],i)=>{
     try{
