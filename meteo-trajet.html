@@ -78,7 +78,7 @@ svg a:hover text{text-decoration:underline}
     <h1>Météo trajet</h1>
     <button class="sec noprint hide" id="print" title="Enregistrer en PDF ou imprimer (A4 paysage)">📄 PDF / Imprimer</button>
   </div>
-  <p class="sub">Le temps prévu à votre arrivée à chaque étape (16 jours maximum).
+  <p class="sub">Le temps prévu à votre arrivée à chaque étape, puis à la dernière étape jusqu'à la fin des prévisions (16 jours).
     Cliquez sur une commune du graphe pour ses prévisions détaillées dans <a href="meteo-future.html" style="color:var(--acc)">Météo à venir</a>.</p>
 
   <div class="panel noprint">
@@ -253,7 +253,8 @@ $("go").onclick=async()=>{
     // chaque étape couvre son jour d'arrivée jusqu'à la veille de l'étape suivante (séjour)
     const parEtape=await Promise.all(liste.map(async(x,i)=>{
       const suiv=liste[i+1]?.date;
-      const fin=suiv&&suiv>x.date?addJ(suiv,-1):x.date;
+      // dernière étape : la suite jusqu'à la fin des prévisions (J+15)
+      const fin=i===liste.length-1?MAX:suiv&&suiv>x.date?addJ(suiv,-1):x.date;
       const r=await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${x.lat}&longitude=${x.lon}`+
         `&daily=weather_code,temperature_2m_max,temperature_2m_min,rain_sum,showers_sum,snowfall_sum`+
         `&timezone=Europe%2FParis&start_date=${x.date}&end_date=${fin}`+
