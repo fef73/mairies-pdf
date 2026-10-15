@@ -158,10 +158,11 @@ html.fef73-locked #fef73-lock{display:flex;position:fixed;inset:0;z-index:214748
       <button class="go" id="go" disabled>Afficher</button>
       <button class="sec" id="sauver" title="Télécharger ce trajet dans un fichier .json">💾 Enregistrer</button>
       <button class="sec" id="ouvrir" title="Ouvrir un trajet enregistré (.json)">📂 Ouvrir</button>
+      <button class="sec" id="retour" title="Inverser le trajet pour le retour">⇄ Retour</button>
       <button class="sec" id="effacer" title="Vider toutes les étapes">🗑 Effacer</button>
       <input type="file" id="fichier" accept=".json,application/json" hidden>
     </div>
-    <div id="recal" class="recal hide">Trajet « <b id="recalNom"></b> » ouvert · départ le
+    <div id="recal" class="recal hide"><span id="recalA">Trajet ouvert :</span> <b id="recalNom"></b> · départ le
       <input type="date" id="recalDate"> <button class="sec" id="recalOk">Recaler les dates</button></div>
     <p id="msg" class="note" style="margin:10px 0 0"></p>
   </div>
@@ -204,6 +205,7 @@ html.fef73-locked #fef73-lock{display:flex;position:fixed;inset:0;z-index:214748
           <li><b>📄 PDF / Imprimer</b> : page A4 paysage avec le trajet et la date d'édition.</li>
           <li>L'adresse de la page garde tout le trajet : il suffit de la partager ou de la mettre en favori.</li>
           <li><b>💾 Enregistrer / 📂 Ouvrir</b> : le trajet est gardé dans un fichier .json, avec les écarts en jours entre étapes ; à l'ouverture, choisissez la date de départ et les dates se recalent. <b>🗑 Effacer</b> vide toutes les étapes (deuxième clic pour confirmer).</li>
+          <li><b>⇄ Retour</b> : le même trajet en sens inverse, avec les écarts entre étapes inversés ; départ à la date de la dernière étape, à recaler si besoin.</li>
           <li>Ouvert depuis le menu avec « Ma position », la première étape est préremplie avec votre commune.</li>
           <li>Aucune donnée n'est conservée : tout est calculé dans le navigateur. Sources : Open-Meteo, Copernicus CAMS, geo.api.gouv.fr.</li>
         </ul>
@@ -517,7 +519,7 @@ $("fichier").onchange=async ev=>{
   etapes.forEach(e=>e.el.remove()); etapes.length=0;
   CHARGE=liste.slice(0,MAXE).map(x=>x.jour);
   liste.slice(0,MAXE).forEach(x=>{const e=ajouterEtape(addJ(MIN,x.jour),x.altitude??undefined,x.heure||"");e.choisir(x.ville)});
-  $("recalNom").textContent=d.nom||f.name; $("recalDate").value=MIN; $("recal").classList.remove("hide");
+  $("recalA").textContent="Trajet ouvert :"; $("recalNom").textContent=d.nom||f.name; $("recalDate").value=MIN; $("recal").classList.remove("hide");
   if(verifier())$("go").click();
 };
 $("recalOk").onclick=()=>{
@@ -526,12 +528,29 @@ $("recalOk").onclick=()=>{
   if(verifier())$("go").click();
 };
 
+function versChoix(c){return {nom:c.nom,code:c.insee,centre:{coordinates:[c.lon,c.lat]},departement:{nom:c.dep}}}
 function versFichier(c){return {insee:c.insee,nom:c.nom,dep:c.dep,lat:c.lat,lon:c.lon}}
 function depuisFichier(format){return x=>{
   if(format!=="meteo-trajet"||!x||!x.insee||!isFinite(x.lat)||!isFinite(x.lon)||!Number.isInteger(x.jour))return null;
   return {jour:x.jour,heure:/^\d{2}:\d{2}$/.test(x.heure||"")?x.heure:"",altitude:Number.isFinite(x.altitude)?x.altitude:null,
     ville:{nom:String(x.nom||x.insee),code:String(x.insee),centre:{coordinates:[+x.lon,+x.lat]},departement:{nom:String(x.dep||"")}}}}}
 
+
+
+/* ---------- Retour : même trajet en sens inverse, écarts entre étapes inversés ----------
+   A (J0) → B (J+2) → C (J+3) devient C (J0) → B (J+1) → A (J+3) ; départ par défaut : date de la dernière étape. */
+$("retour").onclick=()=>{
+  const val=etapes.filter(e=>e.c&&e.el.querySelector(".date").value);
+  if(val.length<2){$("msg").textContent="Il faut au moins deux étapes avec leur date pour préparer le retour.";return}
+  const pris=val.map(e=>{const a=altEtape(e);return {c:e.c,date:e.el.querySelector(".date").value,alt:Number.isNaN(a)||a==null?undefined:a}});
+  const dFin=pris.at(-1).date, inv=pris.slice().reverse();
+  etapes.forEach(e=>e.el.remove()); etapes.length=0;
+  CHARGE=inv.map(x=>joursEntre(x.date,dFin));
+  inv.forEach((x,i)=>{const e=ajouterEtape(addJ(dFin,CHARGE[i]),x.alt,"");e.choisir(versChoix(x.c))});
+  $("recalA").textContent="Retour :"; $("recalNom").textContent=inv.map(x=>x.c.nom).join(" → ");
+  $("recalDate").value=dFin; $("recal").classList.remove("hide");
+  if(verifier())$("go").click();
+};
 
 /* ---------- Effacer le trajet (deuxième clic pour confirmer) ---------- */
 let effTimer=null;
