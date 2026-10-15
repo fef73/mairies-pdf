@@ -36,6 +36,39 @@ Page : https://fef73.github.io/mairies-pdf/ — proposition commerciale : [mairi
 | `LICENSE` | Droits d'auteur (tous droits réservés) |
 | `README.md` | Ce fichier |
 
+## Météo trajet (`meteo-trajet.html`)
+
+Page : https://fef73.github.io/mairies-pdf/meteo-trajet.html — aussi accessible depuis le menu de [comparateur-meteo.fr](https://comparateur-meteo.fr).
+
+Le temps prévu jour par jour le long d'un voyage, à chaque étape.
+
+### Utilisation
+
+1. Saisir les étapes (jusqu'à 10) : commune choisie dans la liste, date d'arrivée, et en option l'heure d'arrivée et l'altitude.
+2. Cliquer sur **Afficher**.
+3. Facultatif : **PDF / Imprimer** (A4 paysage), ou partager l'adresse de la page, qui contient tout le trajet.
+
+### Graphique
+
+- Une colonne par jour : le jour d'arrivée à chaque étape, les jours sur place jusqu'à l'étape suivante, puis la suite des prévisions de la dernière étape jusqu'à J+15.
+- Températures maxi (orange) et mini (bleu), pluie et neige en barres, icône du temps.
+- ◆ Température à l'heure d'arrivée, si elle est saisie.
+- Pastille de qualité de l'air : indice européen, maximum du jour (prévision d'environ 5 jours).
+- Au-delà de 7 jours, fond grisé : simple tendance.
+- Clic sur une commune : ses prévisions détaillées dans `meteo-future.html`.
+
+### Adresse de la page
+
+`?e=INSEE_date[_altitude[_HH:MM]],…` — exemple : `?e=73065_2026-10-16__14:30,11262_2026-10-18_150`.
+Ouverte avec `?lat=…&lon=…` (lien du menu avec « Ma position »), la première étape est préremplie avec la commune correspondante.
+
+### Données
+
+- Prévisions : [Open-Meteo](https://open-meteo.com/) (Météo-France, ECMWF…), corrigées à l'altitude choisie.
+- Qualité de l'air : Copernicus CAMS via Open-Meteo.
+- Communes : geo.api.gouv.fr (point de calcul : la mairie).
+- Aucune donnée n'est conservée : tout est calculé dans le navigateur.
+
 ## Droits
 
 © 2026 Fernand (fef73) — tous droits réservés. Voir [LICENSE](LICENSE).

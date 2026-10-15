@@ -48,6 +48,21 @@ svg{width:100%;height:auto;display:block}
 .titre{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap}
 svg a text{cursor:pointer}
 svg a:hover text{text-decoration:underline}
+/* ---------- Fonctionnement, contact, copyright (comme le menu) ---------- */
+.features{margin-top:22px}
+.features details{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:4px 20px}
+.features summary{cursor:pointer;padding:14px 0;font-weight:500;list-style:none;display:flex;align-items:center;gap:9px;user-select:none}
+.features summary::-webkit-details-marker{display:none}
+.features summary::before{content:"▸";color:var(--acc);font-size:13px;transition:transform .15s;display:inline-block}
+.features details[open] summary::before{transform:rotate(90deg)}
+.features .corps{padding:2px 0 18px}
+.features h3{font:500 11px "IBM Plex Mono",monospace;letter-spacing:.08em;text-transform:uppercase;color:var(--acc);margin:16px 0 6px}
+.features h3:first-child{margin-top:4px}
+.features ul{margin:0;padding-left:20px;font-size:13.5px;line-height:1.65}
+.features li{margin-bottom:4px}
+.contact{margin-top:18px;text-align:center;font-size:12px}
+.contact a{color:#7ee4b8;text-decoration:none;border:1px solid var(--line);border-radius:8px;padding:5px 12px;display:inline-block}
+.copyright{margin-top:14px;font-size:11px;opacity:.6;text-align:center}
 /* ---------- PDF / impression : A4 paysage, fond blanc ---------- */
 .printonly{display:none}
 @page{size:A4 landscape;margin:10mm}
@@ -107,6 +122,38 @@ svg a:hover text{text-decoration:underline}
     <div id="graphe"></div>
   </div>
   <p class="note hide" id="src">Au-delà de 7 jours : simple tendance (cadre grisé). Altitude : celle du point mairie (auto) ou celle saisie ; les températures sont corrigées en conséquence. Qualité de l'air : indice européen, prévision CAMS (environ 5 jours ; cadre pointillé au-delà). Source : Open-Meteo (Météo-France, ECMWF…). Communes : geo.api.gouv.fr.</p>
+  <div class="features noprint">
+    <details>
+      <summary>ℹ️ Fonctionnement du site</summary>
+      <div class="corps">
+        <h3>🧭 Saisir le trajet</h3>
+        <ul>
+          <li><b>Étapes</b> : jusqu'à 10, chacune avec une commune française choisie dans la liste (nom, code postal ou code INSEE) et sa date d'arrivée.</li>
+          <li><b>Heure d'arrivée</b> (facultatif) : affiche le temps à cette heure-là (◆), en plus du mini et du maxi du jour.</li>
+          <li><b>Altitude</b> (facultatif) : laissée vide, c'est celle de la mairie ; saisie (ex. une station au-dessus du village), les prévisions sont recalculées pour ce point.</li>
+          <li>Les dates vont d'aujourd'hui à J+15 et une étape ne peut pas précéder la précédente.</li>
+        </ul>
+        <h3>📊 Lire le graphique</h3>
+        <ul>
+          <li>Une colonne par jour : à l'arrivée à une étape (nom en bleu, trait vertical), puis les jours sur place (nom en gris) jusqu'à l'étape suivante.</li>
+          <li>Après la dernière étape, la suite des prévisions jusqu'à 16 jours.</li>
+          <li>Points <b>orange</b> : maxi · points <b>bleus</b> : mini · barres : pluie (mm) et neige (cm), échelle à droite.</li>
+          <li>Icône du temps et <b>pastille de qualité de l'air</b> (indice européen, maximum du jour, environ 5 jours de prévision).</li>
+          <li>Au-delà de 7 jours (fond grisé) : simple tendance, à reconfirmer.</li>
+        </ul>
+        <h3>✨ Et aussi</h3>
+        <ul>
+          <li>Clic sur une commune du graphique : ses prévisions détaillées dans <a href="meteo-future.html" style="color:var(--acc)">Météo à venir</a>.</li>
+          <li><b>📄 PDF / Imprimer</b> : page A4 paysage avec le trajet et la date d'édition.</li>
+          <li>L'adresse de la page garde tout le trajet : il suffit de la partager ou de la mettre en favori.</li>
+          <li>Ouvert depuis le menu avec « Ma position », la première étape est préremplie avec votre commune.</li>
+          <li>Aucune donnée n'est conservée : tout est calculé dans le navigateur. Sources : Open-Meteo, Copernicus CAMS, geo.api.gouv.fr.</li>
+        </ul>
+      </div>
+    </details>
+  </div>
+  <div class="contact noprint"><a href="https://forms.gle/EMZtxMBJCUE6HJXp8" target="_blank" rel="noopener">✉️ Contact / suggestion</a></div>
+  <div class="copyright">© 2026 Fernand (fef73) — Tous droits réservés · All rights reserved</div>
 </div>
 
 <script>
