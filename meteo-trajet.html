@@ -313,7 +313,7 @@ $("go").onclick=async()=>{
 /* ---------- Graphique : une colonne par étape ---------- */
 function dessiner(E){
   $("res").classList.remove("hide"); $("src").classList.remove("hide"); $("print").classList.remove("hide");
-  const n=E.length, W=1000, H=456, L=44, R=44, T=70, B=94, w=W-L-R, h=H-T-B, step=w/n;
+  const n=E.length, W=1000, H=472, L=44, R=44, T=70, B=110, w=W-L-R, h=H-T-B, step=w/n;
   const x=i=>L+step*(i+.5);
   const temps=E.flatMap(e=>[e.tx,e.tn]).filter(v=>v!=null);
   let lo=Math.floor(Math.min(...temps)/5)*5, hi=Math.ceil(Math.max(...temps)/5)*5;
@@ -379,7 +379,8 @@ function dessiner(E){
         <a href="meteo-future.html?insee=${encodeURIComponent(e.insee)}${e.altSaisie?"&alt="+e.alt:""}" target="_blank"><text x="${x(i)}" y="${H-B+38}" fill="${e.arrivee?"var(--acc)":"var(--mute)"}" font-size="${fs}" font-weight="${e.arrivee?600:400}" text-anchor="middle">${esc(court(e.nom))}<title>${esc(e.nom)}${e.dep?" ("+esc(e.dep)+")":""} — prévisions détaillées</title></text></a>
         <text x="${x(i)}" y="${H-B+54}" fill="var(--mute)" font-size="11" text-anchor="middle" font-family="IBM Plex Mono,monospace">${e.elev} m<title>Altitude ${e.altSaisie?"saisie":"automatique"} : ${e.elev} m</title></text>
         ${e.arrivee?`<text x="${x(i)}" y="${H-B+70}" fill="var(--mute)" font-size="11" text-anchor="middle">étape ${e.etape+1}</text>`:""}
-        ${e.h&&e.h.t!=null?`<text x="${x(i)}" y="${H-B+86}" fill="var(--txt)" font-size="11" text-anchor="middle" font-family="IBM Plex Mono,monospace">◆ ${e.h.heure.replace(":","h")} ${fmt(e.h.t)}°${e.h.p>0||e.h.s>0?" 💧":""}</text>`:""}`;
+        ${e.h&&e.h.t!=null?`<text x="${x(i)}" y="${H-B+86}" fill="var(--txt)" font-size="11" text-anchor="middle" font-family="IBM Plex Mono,monospace">◆ ${e.h.heure.replace(":","h")}</text>
+          <text x="${x(i)}" y="${H-B+101}" fill="var(--txt)" font-size="12" font-weight="600" text-anchor="middle" font-family="IBM Plex Mono,monospace">${fmt(e.h.t)}°${e.h.p>0||e.h.s>0?" 💧":""}</text>`:""}`;
   });
   $("graphe").innerHTML=s+"</svg>";
 }
