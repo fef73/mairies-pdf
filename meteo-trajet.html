@@ -46,6 +46,9 @@ svg{width:100%;height:auto;display:block}
 @media (max-width:700px){#graphe svg{min-width:720px}}
 @media print{#graphe svg{min-width:0}}
 .hide{display:none}
+.recal{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:10px;padding:10px 12px;border:1px dashed var(--acc);border-radius:10px;font-size:14px}
+.recal input{width:auto}
+
 .titre{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap}
 svg a text{cursor:pointer}
 svg a:hover text{text-decoration:underline}
@@ -151,7 +154,12 @@ html.fef73-locked #fef73-lock{display:flex;position:fixed;inset:0;z-index:214748
     <div class="actions">
       <button class="sec" id="ajout">＋ Ajouter une étape</button>
       <button class="go" id="go" disabled>Afficher</button>
+      <button class="sec" id="sauver" title="Télécharger ce trajet dans un fichier .json">💾 Enregistrer</button>
+      <button class="sec" id="ouvrir" title="Ouvrir un trajet enregistré (.json)">📂 Ouvrir</button>
+      <input type="file" id="fichier" accept=".json,application/json" hidden>
     </div>
+    <div id="recal" class="recal hide">Trajet « <b id="recalNom"></b> » ouvert · départ le
+      <input type="date" id="recalDate"> <button class="sec" id="recalOk">Recaler les dates</button></div>
     <p id="msg" class="note" style="margin:10px 0 0"></p>
   </div>
 
@@ -192,6 +200,7 @@ html.fef73-locked #fef73-lock{display:flex;position:fixed;inset:0;z-index:214748
           <li>Clic sur une commune du graphique : ses prévisions détaillées dans <a href="meteo-future.html" style="color:var(--acc)">Météo à venir</a>.</li>
           <li><b>📄 PDF / Imprimer</b> : page A4 paysage avec le trajet et la date d'édition.</li>
           <li>L'adresse de la page garde tout le trajet : il suffit de la partager ou de la mettre en favori.</li>
+          <li><b>💾 Enregistrer / 📂 Ouvrir</b> : le trajet est gardé dans un fichier .json, avec les écarts en jours entre étapes ; à l'ouverture, choisissez la date de départ et les dates se recalent.</li>
           <li>Ouvert depuis le menu avec « Ma position », la première étape est préremplie avec votre commune.</li>
           <li>Aucune donnée n'est conservée : tout est calculé dans le navigateur. Sources : Open-Meteo, Copernicus CAMS, geo.api.gouv.fr.</li>
         </ul>
@@ -477,6 +486,48 @@ function dessiner(E){
   });
   $("graphe").innerHTML=s+"</svg>";
 }
+
+
+/* ---------- Enregistrer / ouvrir un trajet (.json) ----------
+   Les dates sont stockées en jours depuis le départ (« jour »), pour réutiliser le trajet à d'autres dates. */
+const joursEntre=(a,b)=>Math.round((new Date(b+"T12:00")-new Date(a+"T12:00"))/864e5);
+let CHARGE=null;   // jours des étapes du dernier fichier ouvert, pour recaler les dates
+$("sauver").onclick=()=>{
+  const val=etapes.filter(e=>e.c);
+  if(!val.length){$("msg").textContent="Choisissez au moins une commune avant d'enregistrer.";return}
+  const d0=val[0].el.querySelector(".date").value||MIN;
+  const noms=val.map(e=>e.c.nom);
+  const data={format:"meteo-trajet",version:1,nom:noms.join(" → "),enregistre:isoJ(new Date()),
+    etapes:val.map(e=>{const a=altEtape(e);return {...versFichier(e.c),jour:joursEntre(d0,e.el.querySelector(".date").value||d0),
+      heure:e.el.querySelector(".heure").value||"",altitude:Number.isNaN(a)?null:a}})};
+  const url=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:"application/json"}));
+  const a=document.createElement("a");a.href=url;
+  a.download="trajet_"+[noms[0],noms.length>1?noms.at(-1):""].filter(Boolean).join("-").normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^\w-]+/g,"-")+".json";
+  document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
+};
+$("ouvrir").onclick=()=>$("fichier").click();
+$("fichier").onchange=async ev=>{
+  const f=ev.target.files[0]; ev.target.value=""; if(!f)return;
+  let d; try{d=JSON.parse(await f.text())}catch{d=null}
+  const liste=d&&Array.isArray(d.etapes)?d.etapes.map(depuisFichier(d.format)).filter(Boolean):[];
+  if(!liste.length||liste.length!==d.etapes.length){$("msg").innerHTML=`<span class="err">${"Fichier non reconnu : choisissez un trajet enregistré par Météo trajet (.json)."}</span>`;return}
+  etapes.forEach(e=>e.el.remove()); etapes.length=0;
+  CHARGE=liste.slice(0,MAXE).map(x=>x.jour);
+  liste.slice(0,MAXE).forEach(x=>{const e=ajouterEtape(addJ(MIN,x.jour),x.altitude??undefined,x.heure||"");e.choisir(x.ville)});
+  $("recalNom").textContent=d.nom||f.name; $("recalDate").value=MIN; $("recal").classList.remove("hide");
+  if(verifier())$("go").click();
+};
+$("recalOk").onclick=()=>{
+  const d0=$("recalDate").value; if(!d0||!CHARGE)return;
+  etapes.forEach((e,i)=>{if(CHARGE[i]!=null)e.el.querySelector(".date").value=addJ(d0,CHARGE[i])});
+  if(verifier())$("go").click();
+};
+
+function versFichier(c){return {insee:c.insee,nom:c.nom,dep:c.dep,lat:c.lat,lon:c.lon}}
+function depuisFichier(format){return x=>{
+  if(format!=="meteo-trajet"||!x||!x.insee||!isFinite(x.lat)||!isFinite(x.lon)||!Number.isInteger(x.jour))return null;
+  return {jour:x.jour,heure:/^\d{2}:\d{2}$/.test(x.heure||"")?x.heure:"",altitude:Number.isFinite(x.altitude)?x.altitude:null,
+    ville:{nom:String(x.nom||x.insee),code:String(x.insee),centre:{coordinates:[+x.lon,+x.lat]},departement:{nom:String(x.dep||"")}}}}}
 
 /* ---------- PDF : nom de fichier = trajet + date, mise en page A4 paysage ---------- */
 $("print").onclick=()=>{

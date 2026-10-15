@@ -57,6 +57,10 @@ Le temps prévu jour par jour le long d'un voyage, à chaque étape.
 - Au-delà de 7 jours, fond grisé : simple tendance.
 - Clic sur une commune : ses prévisions détaillées dans `meteo-future.html`.
 
+### Enregistrer un trajet
+
+**💾 Enregistrer** télécharge le trajet dans un fichier `trajet_….json` ; **📂 Ouvrir** le recharge. Les dates y sont stockées en jours depuis le départ (`"jour": 0, 2, 3…`) : à l'ouverture, choisir la date de départ puis **Recaler les dates**. Format : `{"format":"meteo-trajet","version":1,"nom":…,"etapes":[{"insee","nom","dep","lat","lon","jour","heure","altitude"}]}`.
+
 ### Adresse de la page
 
 `?e=INSEE_date[_altitude[_HH:MM]],…` — exemple : `?e=73065_2026-10-16__14:30,11262_2026-10-18_150`.
