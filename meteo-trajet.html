@@ -216,7 +216,7 @@ html.fef73-locked #fef73-lock{display:flex;position:fixed;inset:0;z-index:214748
         <ul>
           <li>Clic sur une commune du graphique : ses prévisions détaillées dans <a href="meteo-future.html" style="color:var(--acc)">Météo à venir</a>.</li>
           <li><b>📄 PDF / Imprimer</b> : page A4 paysage avec le trajet et la date d'édition.</li>
-          <li><b>Bulletin</b> sous le graphique : le temps de chaque étape rédigé en clair, avec les icônes jour par jour, un résumé et ce qu'il faut emporter ; <b>📋 Copier</b> pour le coller dans un message. Il figure aussi dans le PDF.</li>
+          <li><b>Bulletin</b> sous le graphique : le temps de chaque étape rédigé en clair, avec les icônes jour par jour et la qualité de l'air (🟢 bon · 🟡 dégradé · 🟠 mauvais · 🔴 très mauvais), un résumé et ce qu'il faut emporter ; <b>📋 Copier</b> pour le coller dans un message. Il figure aussi dans le PDF.</li>
           <li>L'adresse de la page garde tout le trajet : il suffit de la partager ou de la mettre en favori.</li>
           <li><b>💾 Enregistrer / 📂 Ouvrir</b> : le trajet est gardé dans un fichier .json, avec les écarts en jours entre étapes ; à l'ouverture, choisissez la date de départ et les dates se recalent. <b>🗑 Effacer</b> vide toutes les étapes (deuxième clic pour confirmer).</li>
           <li><b>⇄ Retour</b> : le même trajet en sens inverse, avec les écarts entre étapes inversés ; départ à la date de la dernière étape, à recaler si besoin.</li>
@@ -449,12 +449,24 @@ function bulletin(E){
     if(sn>=1)ph.push(`Neige annoncée : ${cm(sn)} au total.`);
     if(J.some(e=>e.code>=95))ph.push("Risque d'orage.");
     if(tx!=null&&tn!=null&&tx-tn>=13&&!gel)ph.push("Écart jour-nuit marqué : une couche chaude pour les soirées.");
+    // qualité de l'air (prévision CAMS, ~5 jours) : pire jour de l'étape
+    const A=J.filter(e=>e.aq!=null);
+    let aqMax=null;
+    if(A.length){
+      const pire=A.reduce((a,b)=>b.aq>a.aq?b:a), c=aqCls(pire.aq), v=Math.round(pire.aq); aqMax=pire.aq;
+      const part=A.length<J.length?` (prévue jusqu'au ${dCourt(A.at(-1).date)})`:"";
+      ph.push(c<=1?`Qualité de l'air bonne${part}.`
+        :c===2?`Qualité de l'air dégradée par moments (indice jusqu'à ${v})${part}.`
+        :`Qualité de l'air ${["bonne","moyenne","dégradée","mauvaise","très mauvaise","extrêmement mauvaise"][c]} le ${dCourt(pire.date)} (indice ${v}) : limitez les efforts en plein air${part}.`);
+    }
     if(J.some(e=>e.date>=TEND))ph.push("Au-delà de 7 jours : tendance à reconfirmer.");
     const d0=J[0].date, d1=J.at(-1).date;
     // jour par jour : icône du temps, date courte, maxi/mini
     const jj=J.map(e=>{const [ic,lb]=WMO[e.code]||["❔","—"];
-      return {ic,lb,txt:`${ic} ${new Date(e.date+"T12:00").toLocaleDateString("fr-FR",{weekday:"short",day:"numeric"})} ${deg(e.tx)}/${deg(e.tn)}`}});
-    et.push({nom:J[0].nom,per:d0===d1?dCourt(d0):`${dCourt(d0)} – ${dCourt(d1)}`,ph,jj,tx,tn,gel,pluie:r/J.length,neige:sn>=1});
+      const ac=e.aq!=null?aqCls(e.aq):null, pa=ac==null?"":" "+["🟢","🟢","🟡","🟠","🔴","🟣"][ac];
+      return {ic,lb:lb+(ac==null?"":` · air : ${AQ.lab[ac]} (${Math.round(e.aq)})`),
+        txt:`${ic} ${new Date(e.date+"T12:00").toLocaleDateString("fr-FR",{weekday:"short",day:"numeric"})} ${deg(e.tx)}/${deg(e.tn)}${pa}`}});
+    et.push({nom:J[0].nom,per:d0===d1?dCourt(d0):`${dCourt(d0)} – ${dCourt(d1)}`,ph,jj,tx,tn,gel,pluie:r/J.length,neige:sn>=1,aqMax});
   }
   $("bTitre").textContent=`Bulletin du trajet · ${[...new Set(et.map(e=>e.nom))].join(" → ")}`;
   $("bSous").textContent=`Du ${dCourt(E[0].date)} au ${dCourt(E.at(-1).date)} · prévisions`;
@@ -469,6 +481,8 @@ function bulletin(E){
     if(x1-x0>=2)res.push(`Étape la plus chaude : ${ch.nom}.`);
     if(n1-n0>=2)res.push(`Nuits les plus fraîches : ${fr.nom} (${deg(fr.tn)}).`);
     if(hu.pluie>=.15&&p1-p0>=.08)res.push(`Étape la plus arrosée : ${hu.nom}.`);
+    const po=et.filter(e=>e.aqMax!=null).reduce((a,b)=>!a||b.aqMax>a.aqMax?b:a,null);
+    if(po&&aqCls(po.aqMax)>=2)res.push(`Air le moins bon : ${po.nom}.`);
   }
   const sac=[];
   if(et.some(e=>e.tx>=24))sac.push("vêtements légers");
