@@ -31,7 +31,7 @@ Page : https://fef73.github.io/mairies-pdf/ — proposition commerciale : [mairi
 |---|---|
 | `index.html` | Le générateur complet (HTML, CSS et JavaScript) |
 | `meteo-future.html` | Prévisions 16 jours d'une commune, normales, tendance saisonnière, horizon neige |
-| `meteo-trajet.html` | Météo jour par jour le long d'un trajet : étapes (commune, date d'arrivée, altitude), graphe T° mini/maxi, pluie/neige, PDF A4 |
+| `meteo-trajet.html` | Météo jour par jour le long d'un trajet : étapes (commune, date d'arrivée, altitude), graphe T° mini/maxi, pluie/neige, bulletin rédigé, PDF A4 |
 | `logo-fef73.jpg` | Avatar de la signature de bas de page |
 | `LICENSE` | Droits d'auteur (tous droits réservés) |
 | `README.md` | Ce fichier |
@@ -46,7 +46,8 @@ Le temps prévu jour par jour le long d'un voyage, à chaque étape.
 
 1. Saisir les étapes (jusqu'à 10) : commune choisie dans la liste, date d'arrivée, et en option l'heure d'arrivée et l'altitude.
 2. Cliquer sur **Afficher**.
-3. Facultatif : **PDF / Imprimer** (A4 paysage), ou partager l'adresse de la page, qui contient tout le trajet.
+3. Sous le graphique, un **bulletin** rédigé (temps par étape, résumé, quoi emporter), à copier avec **📋 Copier**.
+4. Facultatif : **PDF / Imprimer** (A4 paysage, bulletin inclus), ou partager l'adresse de la page, qui contient tout le trajet.
 
 ### Graphique
 
