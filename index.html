@@ -502,7 +502,10 @@ async function grGet(path,insee){
     let r; try{ r=await fetch(`${GR_API}${path}?code_insee=${insee}&page=${p}&page_size=100`,{signal:ctl.signal}); } finally{ clearTimeout(t); }
     if(r.status===404) return out;
     if(!r.ok) throw new Error('Géorisques HTTP '+r.status);
-    const j=await r.json(), d=Array.isArray(j)?j:(j.data||[]);
+    const j=await r.json();
+    // réponse paginée nationale (ignore le code INSEE) : inutilisable ici
+    if(!Array.isArray(j)&&!Array.isArray(j.data)) throw new Error('Géorisques : réponse non filtrée par commune');
+    const d=Array.isArray(j)?j:j.data;
     out.push(...d);
     if(!d.length||p>=(+j.total_pages||1)) break;
   }
@@ -547,7 +550,7 @@ function inondBlock(I, nom) {
     <div class="ext">
       <div><span>Arrêtés inondation</span><b>${fr(I.n, 0)}</b><small>${I.n ? `dont ${fr(I.recent, 0)} depuis 2016` : 'aucun depuis 1982'}</small></div>
       <div><span>Dernier événement</span><b>${I.last || '—'}</b><small>${I.torrent ? `${fr(I.torrent, 0)} lave${I.torrent > 1 ? 's' : ''} torrentielle${I.torrent > 1 ? 's' : ''}` : 'inondation, coulée de boue'}</small></div>
-      <div><span>Plan de prévention inondation</span><b style="font-size:16px">${ppri}</b><small>PPRI ou PPR multirisques</small></div>
+      <div><span>Plan de prévention inondation</span><b style="font-size:16px">${ppri}</b><small>${I.ppri == null ? 'non disponible pour l\'instant' : 'PPRI ou PPR multirisques'}</small></div>
       <div><span>Zones inondables</span><b style="font-size:16px">${I.tri == null && I.azi == null ? '—' : zone.length ? 'oui' : 'non recensée'}</b><small>${zone.length ? zone.join(', ') : 'ni TRI ni atlas'}</small></div>
     </div>
     <div class="ski-cap">Un arrêté de catastrophe naturelle reconnaît qu'un événement (crue, coulée de boue, lave torrentielle) a causé des dégâts importants à ${esc(nom)}. L'absence d'arrêté ne signifie pas l'absence de risque : consultez le plan de prévention et le DICRIM de la commune.</div></div>`;
