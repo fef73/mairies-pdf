@@ -492,7 +492,7 @@ function airChart(A) {
 // Arrêtés de catastrophe naturelle « inondation / coulée de boue / lave torrentielle » depuis 1982,
 // plan de prévention des risques inondation (PPRI), territoire à risque important (TRI), atlas des zones inondables (AZI).
 const GR_API='https://georisques.gouv.fr/api/v1/gaspar/';
-const INOND_KEY='inond-v3-', INOND_TTL=30*864e5;
+const INOND_KEY='inond-v4-', INOND_TTL=30*864e5;
 const RX_INOND=/inond|crue|coul[ée]es? de boue|torrent|ruissel|submersion/i;
 const grVals=o=>{const out=[];(function w(x){if(x==null)return;if(typeof x==='string')out.push(x);else if(typeof x==='object')Object.values(x).forEach(w);})(o);return out.join(' | ');};
 async function grGet(path,insee){
@@ -527,6 +527,10 @@ async function inondation(insee){
   if(!insee) return null;
   try{ const c=JSON.parse(localStorage.getItem(INOND_KEY+insee)||'null'); if(c&&Date.now()-c.t<INOND_TTL) return c.v; }catch(e){}
   const [cat,rsq,tri,azi]=await Promise.allSettled(['catnat','risques','tri','azi'].map(p=>grGet(p,insee)));
+  // rapport « Ma commune face aux risques » : remontée de nappe et lien vers le rapport complet (plan de prévention…)
+  let rap=null; try{ const ctl=new AbortController(), t=setTimeout(()=>ctl.abort(),9000);
+    const r=await fetch(`https://georisques.gouv.fr/api/v1/resultats_rapport_risque?code_insee=${insee}`,{signal:ctl.signal}); clearTimeout(t);
+    if(r.ok) rap=await r.json(); }catch(e){}
   if(cat.status!=='fulfilled') return null;
   const ev=cat.value.filter(o=>RX_INOND.test(grVals(o)));
   const ys=ev.map(grAnnee).filter(Boolean);
@@ -538,7 +542,11 @@ async function inondation(insee){
   const v={
     n:ev.length, recent:ys.filter(y=>y>=2016).length, last:ys.length?Math.max(...ys):null, first:ys.length?Math.min(...ys):null,
     torrent:ev.filter(o=>/torrent/i.test(grVals(o))).length,
-    types, inondRec, barrage:det==null?null:det.some(r=>r.num_risque==='23'),
+    types:(()=>{ const nappe=rap&&rap.risquesNaturels&&rap.risquesNaturels.remonteeNappe&&rap.risquesNaturels.remonteeNappe.present;
+      if(types==null) return nappe?['remontée de nappe']:null; return nappe&&!types.includes('remontée de nappe')?[...types,'remontée de nappe']:types; })(),
+    inondRec:inondRec||!!(rap&&rap.risquesNaturels&&rap.risquesNaturels.inondation&&rap.risquesNaturels.inondation.present),
+    barrage:det==null?(rap&&rap.risquesTechnologiques&&rap.risquesTechnologiques.ruptureBarrage?!!rap.risquesTechnologiques.ruptureBarrage.present:null):det.some(r=>r.num_risque==='23'),
+    url:rap&&typeof rap.url==='string'&&/^https:\/\/www\.georisques\.gouv\.fr\//.test(rap.url)?rap.url:null,
     tri:tri.status==='fulfilled'?tri.value.length>0:null,
     azi:azi.status==='fulfilled'?azi.value.length>0:null
   };
@@ -556,7 +564,7 @@ function inondBlock(I, nom) {
       <div><span>Formes d'inondation recensées</span><b>${T == null ? '—' : T.length ? fr(T.length, 0) : (I.inondRec ? 'oui' : 'aucune')}</b><small>${T == null ? 'non disponible' : T.length ? T.join(', ') : (I.inondRec ? 'inondation' : 'non recensée par l\'État')}</small></div>
       <div><span>Zones inondables</span><b style="font-size:16px">${I.tri == null && I.azi == null ? '—' : zone.length ? 'oui' : 'non recensée'}</b><small>${zone.length ? zone.join(', ') : 'ni TRI ni atlas'}${I.barrage ? ' · risque de rupture de barrage' : ''}</small></div>
     </div>
-    <div class="ski-cap">Un arrêté de catastrophe naturelle reconnaît qu'un événement (crue, coulée de boue, lave torrentielle) a causé des dégâts importants à ${esc(nom)}. L'absence d'arrêté ne signifie pas l'absence de risque : consultez le plan de prévention des risques et le DICRIM de la commune.</div></div>`;
+    <div class="ski-cap">Un arrêté de catastrophe naturelle reconnaît qu'un événement (crue, coulée de boue, lave torrentielle) a causé des dégâts importants à ${esc(nom)}. L'absence d'arrêté ne signifie pas l'absence de risque. Plan de prévention et détail : ${I.url ? `<a href="${esc(I.url)}" target="_blank" rel="noopener" style="color:var(--ac)">rapport Géorisques de la commune</a>` : 'georisques.gouv.fr, « Ma commune face aux risques »'} et DICRIM de la mairie.</div></div>`;
 }
 function airBlock(A) {
   if (!A) return `<div class="sh-sec"><h3>Qualité de l'air</h3><div class="ski-cap">Données de qualité de l'air indisponibles pour ce point.</div></div>`;
