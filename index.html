@@ -580,7 +580,9 @@ function skiBlock(R, ac) {
 }
 
 // ---------- Rendu de la fiche ----------
-let logoData = null, current = null;
+let logoData = null, current = null, RELAYOUT = null;
+// une police chargée après coup (Firefox) change la hauteur du texte : on recalcule la mise en page
+if (document.fonts) document.fonts.addEventListener('loadingdone', () => { if (RELAYOUT) RELAYOUT(); });
 function render(p, R, alt, o) {
   const k = R.ytd, yrs = `${R.years[0]}–${R.lastFull}`;
   const ytdTitle = k.partial ? `${k.year}, du 1er janvier au ${new Date(k.year, +k.endMD.slice(0, 2) - 1, +k.endMD.slice(3)).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })}` : `Année ${k.year} complète`;
@@ -652,7 +654,7 @@ function render(p, R, alt, o) {
     if (k < 1) { CW = Math.round(714 / k); build(); squeeze(); }
     CW = 714; fit();
   };
-  layout();
+  layout(); RELAYOUT = layout;
   document.fonts && document.fonts.ready.then(layout);
 }
 function fit() {
@@ -685,7 +687,7 @@ function squeeze() {
   return 1;
 }
 window.addEventListener('resize', fit);
-window.addEventListener('beforeprint', () => { const s = $('sheet'); if (s) s.style.transform = 'none'; });
+window.addEventListener('beforeprint', () => { if (RELAYOUT) RELAYOUT(); const s = $('sheet'); if (s) s.style.transform = 'none'; });
 window.addEventListener('afterprint', fit);
 
 // ---------- Formulaire ----------
@@ -818,7 +820,7 @@ $('f-lits').addEventListener('input', () => { litsAuto = null; });
 function parseLits() { const v = parseInt($('f-lits').value.replace(/[\s\u00a0\u202f.,]/g, ''), 10); return isFinite(v) && v > 0 ? v : null; }
 $('f-lits').addEventListener('change', () => { if (current) $('go').click(); });
 $('f-mention').addEventListener('change', () => { if (current) $('go').click(); });
-$('print').addEventListener('click', () => { const s = $('sheet'); if (s) s.style.transform = 'none'; window.print(); });
+$('print').addEventListener('click', () => { if (RELAYOUT) RELAYOUT(); const s = $('sheet'); if (s) s.style.transform = 'none'; window.print(); });
 
 // ?insee=73116 : présélectionne la commune par son code INSEE et génère la fiche
 (async () => {
