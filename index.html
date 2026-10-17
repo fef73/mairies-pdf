@@ -523,7 +523,21 @@ function grAnnee(o){
   }
   return first;
 }
-async function inondation(insee){
+// Plans de prévention : fichier préparé par preparer-ppr.html (liste nationale Géorisques, détail par plan)
+const PPR_URL='https://raw.githubusercontent.com/fef73/COMCOM-PDF/main/donnees/ppr-savoie.json'; let PPR_P=null;
+const pprData=()=>PPR_P||(PPR_P=fetch(PPR_URL,{cache:'no-cache'}).then(r=>r.ok?r.json():null).catch(()=>null));
+const PPR_RANG={'approuvé':3,'prescrit':2};
+function pprFor(D,insee){
+  if(!D||!D.communes) return null;
+  const couvert=(D.departements||[]).includes(String(insee).slice(0,2)), l=D.communes[insee]||[];
+  if(!l.length) return couvert?{etat:'aucun',autres:[]}:null;
+  const avecI=l.filter(e=>e.inond&&PPR_RANG[e.inond.etat]).sort((a,b)=>PPR_RANG[b.inond.etat]-PPR_RANG[a.inond.etat]||String(b.inond.date).localeCompare(String(a.inond.date)));
+  const autres=l.filter(e=>!avecI.includes(e)&&e.global&&PPR_RANG[e.global.etat]).map(e=>e.nom);
+  if(!avecI.length) return {etat:'aucun',autres};
+  const e=avecI[0]; return {etat:e.inond.etat,date:e.inond.date,nom:e.nom,modele:e.modele,lien:e.lien,autres};
+}
+async function inondation(insee){ const v=await inondBase(insee); if(!v) return v; return {...v, ppr:pprFor(await pprData(),insee)}; }
+async function inondBase(insee){
   if(!insee) return null;
   try{ const c=JSON.parse(localStorage.getItem(INOND_KEY+insee)||'null'); if(c&&Date.now()-c.t<INOND_TTL) return c.v; }catch(e){}
   const [cat,rsq,tri,azi]=await Promise.allSettled(['catnat','risques','tri','azi'].map(p=>grGet(p,insee)));
@@ -562,9 +576,9 @@ function inondBlock(I, nom) {
       <div><span>Arrêtés inondation</span><b>${fr(I.n, 0)}</b><small>${I.n ? `dont ${fr(I.recent, 0)} depuis 2016` : 'aucun depuis 1982'}</small></div>
       <div><span>Dernier événement</span><b>${I.last || '—'}</b><small>${I.torrent ? `${fr(I.torrent, 0)} lave${I.torrent > 1 ? 's' : ''} torrentielle${I.torrent > 1 ? 's' : ''}` : 'inondation, coulée de boue'}</small></div>
       <div><span>Formes d'inondation recensées</span><b>${T == null ? '—' : T.length ? fr(T.length, 0) : (I.inondRec ? 'oui' : 'aucune')}</b><small>${T == null ? 'non disponible' : T.length ? T.join(', ') : (I.inondRec ? 'inondation' : 'non recensée par l\'État')}</small></div>
-      <div><span>Zones inondables</span><b style="font-size:16px">${I.tri == null && I.azi == null ? '—' : zone.length ? 'oui' : 'non recensée'}</b><small>${zone.length ? zone.join(', ') : 'ni TRI ni atlas'}${I.barrage ? ' · risque de rupture de barrage' : ''}</small></div>
+      ${I.ppr ? `<div><span>Plan de prévention inondation</span><b style="font-size:16px">${I.ppr.etat === 'aucun' ? 'aucun' : I.ppr.etat}${I.ppr.date ? ' ' + I.ppr.date.slice(0, 4) : ''}</b><small>${I.ppr.etat === 'aucun' ? (I.ppr.autres.length ? 'plan sans volet inondation : ' + esc(I.ppr.autres[0]) : 'aucun plan recensé') : esc(I.ppr.nom || '')}</small></div>` : `<div><span>Zones inondables</span><b style="font-size:16px">${I.tri == null && I.azi == null ? '—' : zone.length ? 'oui' : 'non recensée'}</b><small>${zone.length ? zone.join(', ') : 'ni TRI ni atlas'}${I.barrage ? ' · risque de rupture de barrage' : ''}</small></div>`}
     </div>
-    <div class="ski-cap">Un arrêté de catastrophe naturelle reconnaît qu'un événement (crue, coulée de boue, lave torrentielle) a causé des dégâts importants à ${esc(nom)}. L'absence d'arrêté ne signifie pas l'absence de risque. Plan de prévention et détail : ${I.url ? `<a href="${esc(I.url)}" target="_blank" rel="noopener" style="color:var(--ac)">rapport Géorisques de la commune</a>` : 'georisques.gouv.fr, « Ma commune face aux risques »'} et DICRIM de la mairie.</div></div>`;
+    <div class="ski-cap">${I.ppr && (I.tri || I.azi || I.barrage) ? `Zones inondables : ${[I.tri ? 'territoire à risque important (TRI)' : null, I.azi ? 'atlas des zones inondables' : null, I.barrage ? 'risque de rupture de barrage' : null].filter(Boolean).join(', ')}. ` : ''}Un arrêté de catastrophe naturelle reconnaît qu'un événement (crue, coulée de boue, lave torrentielle) a causé des dégâts importants à ${esc(nom)}. L'absence d'arrêté ne signifie pas l'absence de risque. Plan de prévention et détail : ${I.url ? `<a href="${esc(I.url)}" target="_blank" rel="noopener" style="color:var(--ac)">rapport Géorisques de la commune</a>` : 'georisques.gouv.fr, « Ma commune face aux risques »'} et DICRIM de la mairie.</div></div>`;
 }
 function airBlock(A) {
   if (!A) return `<div class="sh-sec"><h3>Qualité de l'air</h3><div class="ski-cap">Données de qualité de l'air indisponibles pour ce point.</div></div>`;
