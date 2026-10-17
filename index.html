@@ -163,6 +163,7 @@
         <label class="check"><input type="checkbox" id="f-futur"> Horizon neige : jours de chute de neige en 2030, 2050 et 2100 (trajectoire officielle TRACC)</label>
         <label class="check"><input type="checkbox" id="f-hist" checked> Depuis 1950 : bandes de température année par année et tableau des jours de gel, de chaleur, de neige…</label>
         <label class="check"><input type="checkbox" id="f-ytd" checked> Année en cours face à la normale : écart de température et de précipitations depuis le 1er janvier</label>
+        <label class="check"><input type="checkbox" id="f-inond" checked> Risque inondation : arrêtés de catastrophe naturelle et plan de prévention (Géorisques, communes françaises)</label>
         <label class="check"><input type="checkbox" id="f-air"> Qualité de l'air : indice européen par mois (données depuis 2022)</label>
         <label class="check"><input type="checkbox" id="f-tour"> Ajouter « Quand venir » (communes touristiques)</label></div>
       <div class="btns">
@@ -487,6 +488,70 @@ function airChart(A) {
   });
   return s + '</svg>';
 }
+// ---------- Risque inondation (API Géorisques, base GASPAR du ministère) ----------
+// Arrêtés de catastrophe naturelle « inondation / coulée de boue / lave torrentielle » depuis 1982,
+// plan de prévention des risques inondation (PPRI), territoire à risque important (TRI), atlas des zones inondables (AZI).
+const GR_API='https://georisques.gouv.fr/api/v1/gaspar/';
+const INOND_KEY='inond-v1-', INOND_TTL=30*864e5;
+const RX_INOND=/inond|crue|coul[ée]es? de boue|torrent|ruissel|submersion/i;
+const grVals=o=>{const out=[];(function w(x){if(x==null)return;if(typeof x==='string')out.push(x);else if(typeof x==='object')Object.values(x).forEach(w);})(o);return out.join(' | ');};
+async function grGet(path,insee){
+  const out=[];
+  for(let p=1;p<=10;p++){
+    const ctl=new AbortController(), t=setTimeout(()=>ctl.abort(),9000);
+    let r; try{ r=await fetch(`${GR_API}${path}?code_insee=${insee}&page=${p}&page_size=100`,{signal:ctl.signal}); } finally{ clearTimeout(t); }
+    if(r.status===404) return out;
+    if(!r.ok) throw new Error('Géorisques HTTP '+r.status);
+    const j=await r.json(), d=Array.isArray(j)?j:(j.data||[]);
+    out.push(...d);
+    if(!d.length||p>=(+j.total_pages||1)) break;
+  }
+  return out;
+}
+// année de début de l'événement (champ dont le nom contient « debut », sinon première date trouvée)
+function grAnnee(o){
+  let first=null;
+  for(const [k,v] of Object.entries(o||{})){
+    if(typeof v!=='string') continue;
+    const m=v.match(/\b\d{1,2}\/\d{1,2}\/(\d{4})\b/)||v.match(/\b(\d{4})-\d{2}-\d{2}/);
+    if(!m) continue;
+    if(/deb/i.test(k)) return +m[1];
+    if(first==null) first=+m[1];
+  }
+  return first;
+}
+async function inondation(insee){
+  if(!insee) return null;
+  try{ const c=JSON.parse(localStorage.getItem(INOND_KEY+insee)||'null'); if(c&&Date.now()-c.t<INOND_TTL) return c.v; }catch(e){}
+  const [cat,ppr,tri,azi]=await Promise.allSettled(['catnat','pprn','tri','azi'].map(p=>grGet(p,insee)));
+  if(cat.status!=='fulfilled') return null;
+  const ev=cat.value.filter(o=>RX_INOND.test(grVals(o)));
+  const ys=ev.map(grAnnee).filter(Boolean);
+  const pp=ppr.status==='fulfilled'?ppr.value.filter(o=>RX_INOND.test(grVals(o))):null;
+  const approuve=o=>/approuv/i.test(grVals(o))||Object.entries(o).some(([k,v])=>/approb/i.test(k)&&v);
+  const v={
+    n:ev.length, recent:ys.filter(y=>y>=2016).length, last:ys.length?Math.max(...ys):null, first:ys.length?Math.min(...ys):null,
+    torrent:ev.filter(o=>/torrent/i.test(grVals(o))).length,
+    ppri:pp==null?null:(pp.length?(pp.some(approuve)?'approuvé':'prescrit'):'aucun'),
+    tri:tri.status==='fulfilled'?tri.value.length>0:null,
+    azi:azi.status==='fulfilled'?azi.value.length>0:null
+  };
+  try{ localStorage.setItem(INOND_KEY+insee,JSON.stringify({t:Date.now(),v})); }catch(e){}
+  return v;
+}
+function inondBlock(I, nom) {
+  if (!I) return `<div class="sh-sec"><h3>Risque inondation</h3><div class="ski-cap">Géorisques n'a pas répondu : régénérez la fiche dans un instant.</div></div>`;
+  const ppri = { 'approuvé': 'approuvé', 'prescrit': 'prescrit (en cours)', 'aucun': 'aucun' }[I.ppri] || '—';
+  const zone = [I.tri ? 'territoire à risque important (TRI)' : null, I.azi ? 'atlas des zones inondables' : null].filter(Boolean);
+  return `<div class="sh-sec"><h3>Risque inondation · arrêtés de catastrophe naturelle depuis 1982</h3>
+    <div class="ext">
+      <div><span>Arrêtés inondation</span><b>${fr(I.n, 0)}</b><small>${I.n ? `dont ${fr(I.recent, 0)} depuis 2016` : 'aucun depuis 1982'}</small></div>
+      <div><span>Dernier événement</span><b>${I.last || '—'}</b><small>${I.torrent ? `${fr(I.torrent, 0)} lave${I.torrent > 1 ? 's' : ''} torrentielle${I.torrent > 1 ? 's' : ''}` : 'inondation, coulée de boue'}</small></div>
+      <div><span>Plan de prévention inondation</span><b style="font-size:16px">${ppri}</b><small>PPRI ou PPR multirisques</small></div>
+      <div><span>Zones inondables</span><b style="font-size:16px">${I.tri == null && I.azi == null ? '—' : zone.length ? 'oui' : 'non recensée'}</b><small>${zone.length ? zone.join(', ') : 'ni TRI ni atlas'}</small></div>
+    </div>
+    <div class="ski-cap">Un arrêté de catastrophe naturelle reconnaît qu'un événement (crue, coulée de boue, lave torrentielle) a causé des dégâts importants à ${esc(nom)}. L'absence d'arrêté ne signifie pas l'absence de risque : consultez le plan de prévention et le DICRIM de la commune.</div></div>`;
+}
 function airBlock(A) {
   if (!A) return `<div class="sh-sec"><h3>Qualité de l'air</h3><div class="ski-cap">Données de qualité de l'air indisponibles pour ce point.</div></div>`;
   const pct = k => Math.round(A.tot[k] / A.n * 100), m0 = A.months[0].m;
@@ -562,6 +627,7 @@ function render(p, R, alt, o) {
     ${o.ski ? skiBlock(R, o.color) : ''}
     ${o.futur ? futBlock(R, alt) : ''}
     ${o.air ? airBlock(o.airData) : ''}
+    ${o.inond ? inondBlock(o.inondData, p.name) : ''}
     <div class="sh-sec"><h3>Les extrêmes depuis ${R.years[0]}</h3>
       <div class="ext">
         <div><span>Jour le plus chaud</span><b>${fr(R.hot.v)} °C</b><small>${dateFr(R.hot.d)}</small></div>
@@ -571,7 +637,7 @@ function render(p, R, alt, o) {
       </div></div>
     <div class="sh-sec"><h3>Repères locaux</h3><div class="local"><ul>${L.map(x => `<li>${x}</li>`).join('')}</ul></div></div>
     ${tourBlock}
-    <div class="sh-foot"><div>Sources : réanalyse ERA5 (Copernicus / ECMWF) via Open-Meteo, ${yrs} ; normales 1991–2020${o.futur ? ' ; horizon neige : TRACC (ministère de la Transition écologique)' : ''}${o.air ? ' ; qualité de l\'air : CAMS (Copernicus) via Open-Meteo' : ''}${o.litsNote ? ' ; lits touristiques : ' + o.litsNote : ''}${o.stn ? ' ; ' + o.stnNote : ''}. Valeurs modélisées au point ${fr(p.lat, 3)}° N, ${fr(p.lon, 3)}° E à ${fr(alt, 0)} m : elles peuvent différer des mesures d'une station. Fiche établie le ${new Date().toLocaleDateString('fr-FR')} à ${new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}.</div>
+    <div class="sh-foot"><div>Sources : réanalyse ERA5 (Copernicus / ECMWF) via Open-Meteo, ${yrs} ; normales 1991–2020${o.futur ? ' ; horizon neige : TRACC (ministère de la Transition écologique)' : ''}${o.inond ? ' ; risque inondation : Géorisques (base GASPAR)' : ''}${o.air ? ' ; qualité de l\'air : CAMS (Copernicus) via Open-Meteo' : ''}${o.litsNote ? ' ; lits touristiques : ' + o.litsNote : ''}${o.stn ? ' ; ' + o.stnNote : ''}. Valeurs modélisées au point ${fr(p.lat, 3)}° N, ${fr(p.lon, 3)}° E à ${fr(alt, 0)} m : elles peuvent différer des mesures d'une station. Fiche établie le ${new Date().toLocaleDateString('fr-FR')} à ${new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}.</div>
       <div class="r">${o.mention ? `<div class="mention">${esc(o.mention)}</div>` : ''}Document informatif : ne remplace pas la vigilance Météo-France.<br>© ${new Date().getFullYear()} fef73</div></div></div>`; };
   const wrap = $('wrap'); $('empty') && $('empty').remove(); if (!sheet.parentNode) wrap.appendChild(sheet);
   // mise en page : si la fiche doit être réduite, on redessine les graphiques à la largeur voulue
@@ -649,7 +715,7 @@ $('f-size').addEventListener('change', () => {
   const a3 = $('f-size').value === 'A3';
   $('page-size').textContent = `@page { size: ${a3 ? 'A3' : 'A4'} portrait; margin: 0; }`;
 });
-['f-color', 'f-tour', 'f-ski', 'f-futur', 'f-air', 'f-ytd', 'f-hist'].forEach(id => $(id).addEventListener('change', () => { if (current) $('go').click(); }));
+['f-color', 'f-tour', 'f-ski', 'f-futur', 'f-air', 'f-inond', 'f-ytd', 'f-hist'].forEach(id => $(id).addEventListener('change', () => { if (current) $('go').click(); }));
 
 const cache = {}, airCache = {};
 // Pause de quota : barre de progression, puis nouvel essai automatique (un clic sur « Générer » relance tout de suite)
@@ -697,10 +763,18 @@ $('go').addEventListener('click', async () => {
       const ak = `${chosen.latitude},${chosen.longitude}`;
       try { airData = airCache[ak] !== undefined ? airCache[ak] : (airCache[ak] = analyseAir(await fetchAir(chosen.latitude, chosen.longitude))); } catch (e) { airData = null; }
     }
+    let inondData = null;
+    if ($('f-inond').checked) {
+      if (!chosen.insee && chosen.country_code !== undefined && chosen.country_code !== 'FR') {}
+      else {
+        if (!chosen.insee) { try { const r = await getJSON(`https://geo.api.gouv.fr/communes?lat=${chosen.latitude}&lon=${chosen.longitude}&fields=code&format=json`); if (r[0]) chosen.insee = r[0].code; } catch (e) {} }
+        if (chosen.insee) { msg('Risque inondation (Géorisques)…'); try { inondData = await inondation(chosen.insee); } catch (e) { inondData = null; } }
+      }
+    }
     const alt = elev != null ? elev : (D.elevation != null ? D.elevation : (chosen.elevation || 0));
     current = { chosen, R, alt };
     render({ name: chosen.name, admin1: chosen.admin1, admin2: chosen.admin2, population: chosen.population, lat: chosen.latitude, lon: chosen.longitude }, R, alt,
-      { color: $('f-color').value, stn: $('f-stn').checked && stnRec && stnRec.stations.length ? stnRec.stations[+$('f-stn-pick').value || 0] : null, stnNote: stnMeta ? stnNoteOf({ meta: stnMeta }) : '', lits: parseLits(), litsNote: litsAuto && parseLits() === litsAuto.lits ? litsAuto.note : '', mention: $('f-mention').value.trim(), tour: $('f-tour').checked, ski: $('f-ski').checked, futur: $('f-futur').checked, air: $('f-air').checked, ytd: $('f-ytd').checked, hist: $('f-hist').checked, airData });
+      { color: $('f-color').value, stn: $('f-stn').checked && stnRec && stnRec.stations.length ? stnRec.stations[+$('f-stn-pick').value || 0] : null, stnNote: stnMeta ? stnNoteOf({ meta: stnMeta }) : '', lits: parseLits(), litsNote: litsAuto && parseLits() === litsAuto.lits ? litsAuto.note : '', mention: $('f-mention').value.trim(), tour: $('f-tour').checked, ski: $('f-ski').checked, futur: $('f-futur').checked, air: $('f-air').checked, inond: $('f-inond').checked && !!chosen.insee, inondData, ytd: $('f-ytd').checked, hist: $('f-hist').checked, airData });
     $('print').disabled = false; msg('Fiche prête.');
   } catch (e) { console.error(e); msg('Erreur pendant la création de la fiche : ' + e.message, true); }
   $('go').disabled = false;
@@ -725,6 +799,7 @@ async function lookupLits() {
   h.textContent = 'Recherche des lits touristiques…';
   try {
     const r = await getJSON(`https://geo.api.gouv.fr/communes?lat=${c.latitude}&lon=${c.longitude}&fields=code&format=json`);
+    if (r[0] && c === chosen) c.insee = r[0].code;
     const rec = r[0] ? await stationRec(r[0].code) : null; if (c !== chosen) return; stnRec = rec; stnKnown = true; stnMeta = rec ? (await stationsData()).meta : null; if (rec && rec.stations.length && c === chosen) $('f-stn').checked = true; fillStnPick();
     const res = rec && litsOf(rec);
     if (c !== chosen) return;
@@ -749,7 +824,7 @@ $('print').addEventListener('click', () => { const s = $('sheet'); if (s) s.styl
     const g = await getJSON(`https://geo.api.gouv.fr/communes/${code}?fields=nom,centre,mairie,population,departement,region&format=json`);
     // point de calcul : la mairie (chef-lieu, là où vivent les habitants) ; à défaut, le centre géométrique de la commune
     const [lon, lat] = (g.mairie || g.centre).coordinates;
-    chosen = { name: qs.get('nom') || g.nom, admin1: g.region && g.region.nom, admin2: g.departement && g.departement.nom, population: g.population, latitude: lat, longitude: lon, elevation: null };
+    chosen = { name: qs.get('nom') || g.nom, admin1: g.region && g.region.nom, admin2: g.departement && g.departement.nom, population: g.population, latitude: lat, longitude: lon, elevation: null, insee: code, country_code: 'FR' };
     if (qs.get('alt') && isFinite(parseFloat(qs.get('alt')))) $('f-alt').value = qs.get('alt');
     if (qs.get('ski') === '1') $('f-ski').checked = true;
     $('f-place').value = [chosen.name, chosen.admin2, chosen.admin1].filter(Boolean).join(', ');
