@@ -243,18 +243,47 @@ function litsOf(c) {
 }
 
 
-// ---------- Données : 1950 → il y a 6 jours, en 3 morceaux ----------
+// ---------- Données figées 1950 → 2024 : un fichier .bin par point (dépôt COMCOM-PDF) ----------
+// Évite de redemander à Open-Meteo 75 ans d'archives qui ne changent plus.
+// Nom : <INSEE>.bin (altitude auto) ou <INSEE>_<altitude>.bin (altitude imposée), point de calcul = la mairie.
+// Format : Int16 little-endian ; [0] = altitude du modèle (m), puis 6 séries de FIGE_N jours dans l'ordre
+// tx, tn, pr, sn, su, wg. Échelles FIGE_ECH (valeur stockée = valeur × échelle). Valeur absente : −32768.
+// Fichiers produits par outils/fiches/preparer-fige.mjs.
+const FIGE_URL = 'https://fef73.github.io/COMCOM-PDF/donnees/journalier-1950-2024/';
+const FIGE_ECH = [10, 10, 10, 100, 0.1, 10];
+const figeJours = () => { const t = []; for (let d = Date.UTC(1950, 0, 1), f = Date.UTC(2024, 11, 31); d <= f; d += 864e5) t.push(new Date(d).toISOString().slice(0, 10)); return t; };
+const figeCache = {};
+async function lireFige(cle) {
+  if (cle in figeCache) return figeCache[cle];
+  let v = null;
+  try {
+    const r = await fetch(FIGE_URL + cle + '.bin');
+    if (r.ok) {
+      const a = new Int16Array(await r.arrayBuffer()), time = figeJours(), n = time.length;
+      if (a.length === 1 + 6 * n) {
+        const s = k => Array.from(a.subarray(1 + k * n, 1 + (k + 1) * n), x => x === -32768 ? null : x / FIGE_ECH[k]);
+        v = { time, tx: s(0), tn: s(1), pr: s(2), sn: s(3), su: s(4), wg: s(5), elevation: a[0] };
+      }
+    }
+  } catch (e) { v = null; }
+  return (figeCache[cle] = v);
+}
+
+// ---------- Données : 1950 → il y a 6 jours, en 3 morceaux (ou figé + 2025 → maintenant) ----------
 const partCache = {};
-async function fetchAll(p, elev) {
+async function fetchAll(p, elev, cle) {
   const endD = new Date(Date.now() - 6 * 86400000), end = endD.toISOString().slice(0, 10);
-  const ranges = [['1950-01-01', '1974-12-31'], ['1975-01-01', '1999-12-31'], ['2000-01-01', end]];
+  const fige = cle ? await lireFige(cle) : null;
+  const ranges = fige ? [['2025-01-01', end]] : [['1950-01-01', '1974-12-31'], ['1975-01-01', '1999-12-31'], ['2000-01-01', end]];
   const vars = 'temperature_2m_max,temperature_2m_min,precipitation_sum,snowfall_sum,sunshine_duration,wind_gusts_10m_max';
   // chaque morceau reçu est gardé : après une pause pour quota, seuls les morceaux manquants sont redemandés
   const urls = ranges.map(([a, b]) => `https://archive-api.open-meteo.com/v1/archive?latitude=${p.lat}&longitude=${p.lon}&start_date=${a}&end_date=${b}&daily=${vars}&timezone=auto${elev != null ? '&elevation=' + elev : ''}`);
   const res = await Promise.allSettled(urls.map(u => partCache[u] || getJSON(u).then(j => (partCache[u] = j))));
   const bad = res.find(x => x.status === 'rejected'); if (bad) throw bad.reason;
   const parts = res.map(x => x.value);
-  const out = { time: [], tx: [], tn: [], pr: [], sn: [], su: [], wg: [], elevation: parts[0].elevation };
+  const out = fige
+    ? { time: [...fige.time], tx: [...fige.tx], tn: [...fige.tn], pr: [...fige.pr], sn: [...fige.sn], su: [...fige.su], wg: [...fige.wg], elevation: parts[0].elevation ?? fige.elevation, fige: true }
+    : { time: [], tx: [], tn: [], pr: [], sn: [], su: [], wg: [], elevation: parts[0].elevation };
   for (const j of parts) {
     const d = j.daily; if (!d || !d.time) throw new Error('vide');
     out.time.push(...d.time); out.tx.push(...d.temperature_2m_max); out.tn.push(...d.temperature_2m_min);
@@ -773,7 +802,9 @@ $('go').addEventListener('click', async () => {
   $('go').disabled = true; msg('Récupération de 75 ans de données…');
   const key = `${chosen.latitude},${chosen.longitude},${elev}`;
   let D;
-  try { D = cache[key] || (cache[key] = await fetchAll({ lat: chosen.latitude, lon: chosen.longitude }, elev)); }
+  // données figées seulement pour une commune ouverte par ?insee= (point de calcul = mairie, comme les fichiers .bin)
+  const cle = chosen.mairie && (elev == null || Number.isInteger(elev)) ? chosen.insee + (elev != null ? '_' + elev : '') : null;
+  try { D = cache[key] || (cache[key] = await fetchAll({ lat: chosen.latitude, lon: chosen.longitude }, elev, cle)); }
   catch (e) {
     delete cache[key]; $('go').disabled = false;
     // quota minute (429), ou pas de réponse lisible (un refus de quota arrive parfois sans en-tête CORS : le navigateur ne voit qu'une erreur réseau)
@@ -855,7 +886,7 @@ $('print').addEventListener('click', () => { if (RELAYOUT) RELAYOUT(); const s =
     const g = await getJSON(`https://geo.api.gouv.fr/communes/${code}?fields=nom,centre,mairie,population,departement,region&format=json`);
     // point de calcul : la mairie (chef-lieu, là où vivent les habitants) ; à défaut, le centre géométrique de la commune
     const [lon, lat] = (g.mairie || g.centre).coordinates;
-    chosen = { name: qs.get('nom') || g.nom, admin1: g.region && g.region.nom, admin2: g.departement && g.departement.nom, population: g.population, latitude: lat, longitude: lon, elevation: null, insee: code, country_code: 'FR' };
+    chosen = { name: qs.get('nom') || g.nom, admin1: g.region && g.region.nom, admin2: g.departement && g.departement.nom, population: g.population, latitude: lat, longitude: lon, elevation: null, insee: code, country_code: 'FR', mairie: true };
     if (qs.get('alt') && isFinite(parseFloat(qs.get('alt')))) $('f-alt').value = qs.get('alt');
     if (qs.get('ski') === '1') $('f-ski').checked = true;
     $('f-place').value = [chosen.name, chosen.admin2, chosen.admin1].filter(Boolean).join(', ');
