@@ -29,7 +29,9 @@ Page : https://fef73.github.io/mairies-pdf/ — proposition commerciale : [mairi
 
 | Fichier | Rôle |
 |---|---|
-| `index.html` | Le générateur complet (HTML, CSS et JavaScript) |
+| `index.html` | Le générateur : formulaire et options |
+| `fiche-moteur.js` | Moteur de la fiche (données, calculs, graphiques, rendu A4), partagé avec `mairies-offres/commune.html` |
+| `fiche-moteur.css` | Styles de la fiche A4, partagés de la même façon |
 | `meteo-future.html` | Prévisions 16 jours d'une commune, normales, tendance saisonnière, horizon neige |
 | `meteo-trajet.html` | Météo jour par jour le long d'un trajet : étapes (commune, date d'arrivée, altitude), graphe T° mini/maxi, pluie/neige, bulletin rédigé, PDF A4 |
 | `logo-fef73.jpg` | Avatar de la signature de bas de page |
@@ -73,6 +75,10 @@ Ouverte avec `?lat=…&lon=…` (lien du menu avec « Ma position »), la premi�
 - Qualité de l'air : Copernicus CAMS via Open-Meteo.
 - Communes : geo.api.gouv.fr (point de calcul : la mairie).
 - Aucune donnée n'est conservée : tout est calculé dans le navigateur.
+
+## Un seul moteur
+
+La fiche est calculée et dessinée par `fiche-moteur.js` et `fiche-moteur.css`. La page commune publique de mairies-offres (`commune.html?insee=…`, mode kiosque) charge les mêmes fichiers : une correction faite ici s'applique aux deux. Les pages sont publiées en clair (plus de StatiCrypt) ; une barrière légère par mot de passe reste sur les outils internes.
 
 ## Droits
 
