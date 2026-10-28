@@ -218,7 +218,7 @@ async function logoCommune(code) {
       const ok = await new Promise(r => { const im = new Image(); im.onload = () => r(true); im.onerror = () => r(false); im.src = src; });
       if (ok && !logoFichier && chosen && chosen.insee === code) { logoData = src; $('logo-hint').textContent = 'Logo de la commune repris de mairies-offres (' + conf.logo + '). Choisir un fichier pour le remplacer.'; if (current) $('go').click(); }
     }
-    if (conf.mention && !/test/i.test(conf.mention) && !$('f-mention').value.trim()) $('f-mention').value = conf.mention;
+    if (conf.mention && !$('f-mention').value.trim()) $('f-mention').value = conf.mention;
   } catch (e) {}
 }
 $('f-size').addEventListener('change', () => {
