@@ -8,6 +8,7 @@ Page : https://fef73.github.io/mairies-pdf/ — proposition commerciale : [mairi
 
 1. Taper le nom de la commune et la choisir dans la liste (option « France uniquement »).
 2. Facultatif : altitude en mètres, logo ou blason de la commune, couleur, format A4 ou A3, mention de pied de page, bloc « Quand venir ».
+   Pour une commune enregistrée dans le `communes.json` de [mairies-offres](https://github.com/fef73/mairies-offres), le logo (`logo`) et la mention (`mention`) sont repris automatiquement ; un fichier choisi à la main reste prioritaire.
 3. Cliquer sur **Générer**, puis sur **PDF / Imprimer** (« Enregistrer au format PDF »).
 
 ## Contenu de la fiche

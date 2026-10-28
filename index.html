@@ -96,6 +96,7 @@
       </div>
       <div class="field"><label for="f-logo">Logo ou blason — facultatif</label>
         <input id="f-logo" type="file" accept="image/*">
+        <p class="hint" id="logo-hint"></p>
       </div>
       <div class="row2">
         <div class="field"><label for="f-color">Couleur</label>
@@ -198,9 +199,28 @@ $('f-place').addEventListener('input', () => {
 document.addEventListener('click', e => { if (!e.target.closest('.field')) $('suggest').classList.add('hidden'); });
 
 $('f-logo').addEventListener('change', e => {
-  const f = e.target.files[0]; if (!f) { logoData = null; return; }
-  const r = new FileReader(); r.onload = () => { logoData = r.result; if (current) $('go').click(); }; r.readAsDataURL(f);
+  const f = e.target.files[0]; if (!f) { logoFichier = false; logoData = null; logoCommune(chosen && chosen.insee); return; }
+  const r = new FileReader(); r.onload = () => { logoFichier = true; logoData = r.result; $('logo-hint').textContent = ''; if (current) $('go').click(); }; r.readAsDataURL(f);
 });
+// Logo et mention de la commune enregistrés dans communes.json (mairies-offres), comme la page web de la commune.
+// Un fichier choisi à la main reste prioritaire ; la mention n'est proposée que si le champ est vide.
+const OFFRES = 'https://fef73.github.io/mairies-offres/';
+let COMMUNES = null, logoFichier = false;
+async function logoCommune(code) {
+  if (logoFichier) return;
+  logoData = null; $('logo-hint').textContent = '';
+  if (!code) return;
+  try {
+    if (!COMMUNES) COMMUNES = await getJSON(OFFRES + 'communes.json?v=' + Date.now());
+    const conf = COMMUNES[code]; if (!conf || logoFichier || !chosen || chosen.insee !== code) return;
+    if (conf.logo) {
+      const src = /^(data:|https?:)/.test(conf.logo) ? conf.logo : OFFRES + conf.logo;
+      const ok = await new Promise(r => { const im = new Image(); im.onload = () => r(true); im.onerror = () => r(false); im.src = src; });
+      if (ok && !logoFichier && chosen && chosen.insee === code) { logoData = src; $('logo-hint').textContent = 'Logo de la commune repris de mairies-offres (' + conf.logo + '). Choisir un fichier pour le remplacer.'; if (current) $('go').click(); }
+    }
+    if (conf.mention && !/test/i.test(conf.mention) && !$('f-mention').value.trim()) $('f-mention').value = conf.mention;
+  } catch (e) {}
+}
 $('f-size').addEventListener('change', () => {
   const a3 = $('f-size').value === 'A3';
   $('page-size').textContent = `@page { size: ${a3 ? 'A3' : 'A4'} portrait; margin: 0; }`;
@@ -285,13 +305,13 @@ function fillStnPick() {
 $('f-stn').addEventListener('change', () => { fillStnPick(); if (current) $('go').click(); });
 $('f-stn-pick').addEventListener('change', () => { if (current) $('go').click(); });
 async function lookupLits() {
-  litsAuto = null; const h = $('lits-hint'), c = chosen; if (!c) return;
+  litsAuto = null; const h = $('lits-hint'), c = chosen; if (!logoFichier) { logoData = null; $('logo-hint').textContent = ''; } if (!c) return;
   stnKnown = false; stnRec = null; fillStnPick();
   const base = 'Si renseigné, « N lits touristiques » s\'affiche sous le nom de la commune. Rempli automatiquement pour les stations de Savoie.';
   h.textContent = 'Recherche des lits touristiques…';
   try {
     const r = await getJSON(`https://geo.api.gouv.fr/communes?lat=${c.latitude}&lon=${c.longitude}&fields=code&format=json`);
-    if (r[0] && c === chosen) c.insee = r[0].code;
+    if (r[0] && c === chosen) { c.insee = r[0].code; logoCommune(c.insee); }
     const rec = r[0] ? await stationRec(r[0].code) : null; if (c !== chosen) return; stnRec = rec; stnKnown = true; stnMeta = rec ? (await stationsData()).meta : null; if (rec && rec.stations.length && c === chosen) $('f-stn').checked = true; fillStnPick();
     const res = rec && litsOf(rec);
     if (c !== chosen) return;
