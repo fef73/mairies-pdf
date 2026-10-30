@@ -41,7 +41,7 @@ Page : https://fef73.github.io/mairies-pdf/ — proposition commerciale : [mairi
 
 ## Météo trajet (`meteo-trajet.html`)
 
-Page : https://fef73.github.io/mairies-pdf/meteo-trajet.html — aussi accessible depuis le menu de [comparateur-meteo.fr](https://comparateur-meteo.fr).
+Page : https://fef73.github.io/mairies-pdf/meteo-trajet.html.
 
 Le temps prévu jour par jour le long d'un voyage, à chaque étape.
 
